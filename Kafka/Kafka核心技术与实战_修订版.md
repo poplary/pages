@@ -182,6 +182,7 @@ v2(0.11+): 公共字段抽到消息集合层  → 压缩整个集合，省空间
 ```
 
 示例：v2 消息集合结构
+
 ```text
 [RecordBatch]
   ├─ BatchHeader(公共: CRC/producerId/epoch/baseSeq)
@@ -3563,8 +3564,9 @@ controller.listener.names=CONTROLLER
 对照原专栏受影响章节，KRaft 的替代方式：Controller 选举（ZK 抢 `/controller` → Raft 仲裁选 active controller）；成员管理（ZK Watch+临时节点 → 元数据日志变更）；元数据传播（Controller 推送 → metadata log 同步）；位移/ACL/动态配置存储（ZK znode → KRaft metadata log）。
 
 ### 重点
+
 | 原专栏机制（ZK 时代） | KRaft 时代 |
-|---|---|
+|------|------|
 | Controller 选举：抢 `/controller` | Raft 仲裁选 active controller |
 | Broker 存活：ZK 临时节点+Watch | metadata log 中 Broker 注册+心跳 |
 | 元数据传播：Controller 推送 | metadata log 复制同步 |
