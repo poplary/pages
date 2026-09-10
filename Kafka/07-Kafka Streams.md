@@ -279,3 +279,208 @@ Kafka Streams:
 
 ---
 
+
+---
+
+## 附录 · Kafka Streams 内核深入解析
+
+> 本节从源码层面深入流处理机制，补充第 39-42 讲的讲解。
+
+### 深入解析：Streams 架构
+
+```text
+Kafka Streams 架构:
+
+┌─────────────────────────────────────────────────┐
+│              应用进程 (同进程, 无独立集群)          │
+│  ┌──────────────────────────────────────────┐    │
+│  │  StreamThread (多个, 默认1)               │    │
+│  │  ┌─────────────┐  ┌─────────────┐        │    │
+│  │  │ StreamTask │  │ StreamTask │  ...    │    │
+│  │  │ (1个分区对)  │  │ (1个分区对)  │        │    │
+│  │  └──────┬──────┘  └──────┬──────┘        │    │
+│  │         │                │                │    │
+│  │  ┌──────▼────────────────▼──────┐        │    │
+│  │  │     状态存储 (RocksDB)         │        │    │
+│  │  │  ┌────────┐  ┌────────┐      │        │    │
+│  │  │  │ Store   │  │ Store   │ ... │        │    │
+│  │  │  └────────┘  └────────┘      │        │    │
+│  │  └──────────────────────────────┘        │    │
+│  └──────────────────────────────────────────┘    │
+│                       │                          │
+│              变更日志主题(changelog)               │
+│              (容错, 恢复状态)                      │
+└─────────────────────────────────────────────────┘
+            │ 消费/生产
+            ▼
+        Kafka 集群
+
+核心组件:
+1. StreamThread: 执行线程, 每个线程处理多个Task
+2. StreamTask: 任务单元, 一个输入分区一个Task
+3. StateStore: 状态存储(RocksDB), 有状态操作用
+4. Changelog: 变更日志主题, 用于状态容错恢复
+```
+
+### 深入解析：状态存储与容错
+
+```text
+状态存储 (StateStore):
+
+无状态操作: map/filter/branch
+  → 不需状态存储, 每条消息独立处理
+
+有状态操作: count/aggregate/join/window
+  → 需保存历史数据(如窗口内累计)
+  → 状态存储: RocksDB (嵌入式, 本地磁盘)
+
+RocksDB 优势:
+  - 嵌入式(无独立进程)
+  - 写入快(LSM树)
+  - 内存+磁盘混合(热数据在内存)
+
+容错机制:
+  每个状态存储对应一个 changelog 主题:
+  → 每次状态变更 → 写入 changelog
+  → Task故障 → 从changelog重放 → 恢复状态
+
+恢复流程:
+┌─────────────────────────────────────────┐
+│ Task 故障 (如消费者实例宕机)             │
+│   → rebalance, Task迁移到其他实例        │
+│   → 新实例创建空StateStore               │
+│   → 从changelog开头重放                  │
+│   → 重建RocksDB状态                      │
+│   → 恢复完成, 开始消费                   │
+└─────────────────────────────────────────┘
+
+优化: 周期性创建changelog快照
+  → 恢复时从快照+增量日志, 加速恢复
+```
+
+### 深入解析：DSL 与 Processor API
+
+```text
+两种API对比:
+
+DSL (声明式, 类SQL):
+  优点: 简洁, 快速开发, 自带优化
+  操作: stream/table, map/filter, groupBy/count,
+        join, window, toStream/toTable
+
+Processor API (命令式, 低阶):
+  优点: 灵活, 可完全自定义处理逻辑
+  操作: 实现Processor接口, 手动管理状态存储
+
+DSL 示例:
+  builder.stream("input")
+    .filter((k,v) -> v.length() > 0)
+    .mapValues(v -> v.toUpperCase())
+    .groupBy((k,v) -> v)
+    .count()
+    .toStream()
+    .to("output");
+
+Processor API 示例:
+  Topology topology = new Topology();
+  topology.addSource("source", "input-topic");
+  topology.addProcessor("process", () -> new MyProcessor(), "source");
+  topology.addSink("sink", "output-topic", "process");
+```
+
+### 深入解析：窗口机制
+
+```text
+4种窗口类型:
+
+1. 翻转窗口 (Tumbling Window):
+   固定大小, 不重叠
+   ┌────┬────┬────┐
+   │ W1 │ W2 │ W3 │
+   └────┴────┴────┘
+   t=0  t=5  t=10 t=15
+   → 每条消息只属于1个窗口
+
+2. 跳跃窗口 (Hopping Window):
+   固定大小, 可重叠
+   ┌────┐
+   │ W1 ├────┐
+   │    │ W2 ├────┐
+   └────┴────┴ W3 │
+   → 每条消息可属于多个窗口
+
+3. 滑动窗口 (Sliding Window):
+   按时间差滑动, 用于join
+   → 适合流-流join (join窗口内匹配)
+
+4. 会话窗口 (Session Window):
+   按活动间隙自动切分
+   ┌───┐     ┌──────┐  ┌──┐
+   │S1 │     │  S2  │  │S3│
+   └───┘     └──────┘  └──┘
+   gap=5min, 间隙>5min切分新会话
+   → 适合用户会话分析
+
+代码示例:
+  // 1分钟翻转窗口统计
+  KTable<Windowed<String>, Long> counts = stream
+    .groupBy((k, v) -> v.getKey())
+    .windowedBy(TimeWindows.of(Duration.ofMinutes(1)))
+    .count();
+
+  // 会话窗口(5分钟gap)
+  KTable<Windowed<String>, Long> sessions = stream
+    .groupBy((k, v) -> v.getUserId())
+    .windowedBy(SessionWindows.with(Duration.ofMinutes(5)))
+    .count();
+```
+
+### 深入解析：流表二元性
+
+```text
+流(Stream) ⇄ 表(Table) 可互相转换:
+
+流 → 表: 聚合(accumulate)
+  stream.groupBy().count() → KTable
+  (每条消息更新表状态)
+
+表 → 流: 变更流(changelog)
+  table.toStream() → KStream
+  (表的每次变更产生一条消息)
+
+DSL双视图:
+  KStream: 事实流(每条都是独立事件)
+    → map/filter/join其他stream
+  
+  KTable: 状态表(保留最新值)
+    → aggregate/window/join其他table
+
+应用:
+  实时PV: stream → groupBy → count(KTable)
+  实时UV: stream → groupBy → count(KTable) + 去重
+  用户画像: stream → join(KTable用户属性) → 输出
+```
+
+---
+
+## 面试题精选
+
+**Q1: Kafka Streams 和 Flink/Spark Streaming 有什么区别？**
+
+A: ①形态：Streams 是轻量客户端库（与应用同进程，无独立集群），Flink/Spark 是完整集群系统；②部署：Streams 零运维（集成进应用），Flink/Spark 需独立集群；③EOS：Streams 原生支持（基于 Kafka 事务），Flink 需借助 Kafka 事务；④适合：Streams 适合中小流量+简单拓扑，Flink 适合大规模+复杂窗口/状态计算。
+
+**Q2: Kafka Streams 的状态存储是什么？如何容错？**
+
+A: 有状态操作（count/aggregate/join）用 RocksDB 作为本地状态存储。容错机制：每次状态变更写入 changelog 主题（内部 topic），Task 故障后从 changelog 重放恢复状态。4.0+ 支持周期性快照加速恢复。
+
+**Q3: DSL 和 Processor API 有什么区别？怎么选？**
+
+A: DSL 是声明式 API（map/filter/groupBy），简洁且自带优化，适合大多数场景。Processor API 是命令式低阶 API（实现 Processor 接口），灵活可自定义处理逻辑和状态管理，适合复杂自定义拓扑。建议先用 DSL，需要细粒度控制时用 Processor API。
+
+**Q4: Kafka Streams 如何实现 Exactly Once？**
+
+A: 基于 Kafka 事务：消费位移提交到 `__consumer_offsets`、中间状态变更写 changelog、输出到目标 topic，三者通过事务 Producer 提交，要么全成功要么全回滚。副作用操作（如写外部 DB）需自行幂等。
+
+**Q5: 翻转窗口和会话窗口有什么区别？**
+
+A: 翻转窗口（Tumbling）固定大小不重叠，每条消息属于一个窗口，适合固定周期统计。会话窗口（Session）按活动间隙自动切分，无活动时关闭，适合用户会话分析（如用户操作间隔超过 5 分钟则切分新会话）。

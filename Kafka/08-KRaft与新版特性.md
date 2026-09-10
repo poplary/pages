@@ -976,3 +976,284 @@ bin/kafka-server-start.sh config/broker1.properties
 - 关键里程碑：3.3 GA（生产可用）、3.6（迁移成熟）、4.0（ZK 移除）。
 - 4.0 不支持从 ZK 直接升级，必须先迁移到 KRaft 再升 4.0。
 - KRaft 与 KIP-848、KIP-932 共同构成 4.0 的三大架构亮点。
+---
+
+## 附录 · KRaft 内核与 4.0 新特性深入解析
+
+> 本节从源码层面深入 KRaft 与 4.0 新特性，补充附录 KRaft 章节的讲解。
+
+### 深入解析：Raft 共识协议在 KRaft 中的应用
+
+```text
+Raft 协议核心 (KRaft 使用的部分):
+
+3个角色:
+  - Leader (active controller): 处理所有写请求
+  - Candidate: 选举中的候选者
+  - Follower: 被动同步日志
+
+任期 (Term):
+  → 单调递增的整数
+  → 每次选举Term+1
+  → 防止旧Leader干扰(旧Term被拒绝)
+
+日志复制:
+  1. Leader 收到写请求
+  2. 追加到本地日志 (uncommitted)
+  3. 并行复制到所有Follower
+  4. 收到多数派(N/2+1)确认 → 提交(committed)
+  5. 返回成功给客户端
+  6. 通知Follower已提交
+
+KRaft 特殊设计:
+  → 元数据日志 = Kafka内部主题 __cluster_metadata
+  → 用Kafka自身的日志复制机制
+  → 不需额外实现Raft日志存储
+  → "用Kafka管理Kafka"的自举
+
+Pre-Vote (KIP-996, 4.0):
+  问题: 网络分区时, 少数派选出新Leader
+       → 网络恢复后冲突, 触发不必要选举
+  解决: Pre-Vote阶段先探查是否能获多数票
+       → 不能则不发起正式选举
+       → 减少网络分区场景的选举风暴
+```
+
+### 深入解析：元数据日志与快照
+
+```text
+__cluster_metadata 主题:
+  → 单分区(0号分区), 副本=Controller节点
+  → append-only日志, 记录所有元数据变更
+  → 每条记录 = 一次元数据操作
+
+元数据记录类型 (部分):
+┌──────────────────────────┬────────────────────────┐
+│ 记录类型                  │ 含义                    │
+├──────────────────────────┼────────────────────────┤
+│ RegisterBrokerRecord      │ Broker注册              │
+│ UnregisterBrokerRecord    │ Broker注销              │
+│ TopicRecord               │ Topic创建               │
+│ DeleteTopicRecord         │ Topic删除               │
+│ PartitionRecord           │ 分区配置                │
+│ PartitionChangeRecord     │ 分区Leader/ISR变更      │
+│ AccessControlRecord       │ ACL变更                 │
+│ ConfigurationRecord       │ 动态配置变更            │
+│ ConsumerGroupRecord       │ 消费者组元数据          │
+│ FenceBrokerRecord         │ 标记Broker不可选Leader   │
+└──────────────────────────┴────────────────────────┘
+
+快照 (Snapshot):
+  问题: 日志无限增长 → 新节点全量回放太慢
+  解决: 定期生成快照
+       → 新节点从快照+增量日志恢复
+
+快照流程:
+  1. 达到触发条件(时间间隔/日志条数)
+  2. 暂停日志追加
+  3. 导出当前元数据状态为快照文件
+  4. 记录快照对应的日志offset
+  5. 恢复日志追加
+
+恢复流程:
+  1. 加载最近快照(内存状态)
+  2. 从快照offset后回放增量日志
+  3. 应用到元数据结构
+  4. 完成恢复, 开始服务
+
+配置:
+  metadata.log.retention.ms=604800000  (7天)
+  snapshot.auto.period=3600000          (1小时)
+
+查看元数据:
+  bin/kafka-metadata-shell.sh
+    --snapshot /var/lib/kafka/metadata/__cluster_metadata-0/00000000000000000000-0000.checkpoint
+  
+  > ls
+  > cat brokers
+  > cat topics
+```
+
+### 深入解析：4.0 新特性详解
+
+#### KIP-848 新消费者组协议
+
+```text
+KIP-848 GA (4.0 默认启用):
+
+核心改进:
+1. 服务端驱动协调
+   → Group Coordinator(Broker) 成为中央智能
+   → 维护组成员, 监控元数据, 计算分配
+   → 客户端更轻量(不需选Leader, 不需算分配)
+
+2. 声明式状态
+   → 消费者通过心跳声明订阅, 确认分配/撤销
+   → 不再自行计算分配
+
+3. 增量式协调
+   → 协调器比较当前状态与目标状态
+   → 通过心跳响应下发撤销/分配指令
+   → 无全局同步屏障
+
+4. 无停止世界暂停
+   → 消费者只暂停需撤销的分区
+   → 其他消费者继续处理不受影响的分区
+
+5. 服务端配置
+   → session.timeout.ms, heartbeat.interval.ms
+   → 迁移到Broker端动态配置
+   → partition.assignment.strategy 无需客户端配
+
+启用:
+  group.protocol=consumer  (客户端)
+
+服务端:
+  4.0默认启用新协议支持
+  旧客户端仍可用classic协议(向后兼容)
+```
+
+#### KIP-932 Queues for Kafka
+
+```text
+KIP-932 (4.0 Early Access):
+
+引入 Share Group:
+  → 传统Consumer Group: 每分区1个消费者(顺序)
+  → Share Group: 多消费者竞争消费同分区
+
+队列语义:
+  → 类似RabbitMQ的work queue模式
+  → 消息被任意一个消费者处理(竞争消费)
+  → 处理后ack(确认), 超时重新投递
+
+适用场景:
+  → 任务分发(不关心顺序, 关心吞吐)
+  → 峰值削峰(多消费者并行处理)
+  → 替代传统MQ的队列语义
+
+管理工具:
+  kafka-share-groups.sh --list
+  kafka-share-groups.sh --describe --share-group <g>
+
+限制(4.0 Early Access):
+  → 仅Early Access, 生产需谨慎
+  → 不保证顺序
+  → 与Consumer Group不互通
+```
+
+#### KIP-966 ELR (预览)
+
+```text
+KIP-966 Eligible Leader Replicas (Preview):
+
+问题: ISR选举可能选到数据不完整的副本?
+  → ISR定义: replica.lag.time.max.ms内同步
+  → 但"同步"不保证数据完整到HW
+  → 选举的Leader可能缺HW附近的消息
+
+解决: ELR更严格
+  → ELR是ISR的子集
+  → 保证候选副本数据完整到HW
+  → 比ISR更安全
+
+与unclean选举关系:
+  unclean=true: 允许从OSR(非ISR)选Leader(可能丢数据)
+  unclean=false: 仅从ISR选
+  ELR: 比ISR更严格的候选集
+
+4.0状态: Preview(预览), 可选启用
+```
+
+#### KIP-890 事务服务端防御
+
+```text
+KIP-890 (4.0 Phase 2 完成):
+
+问题: Producer故障时的"僵尸事务"
+  → 旧Producer实例(epoch低)仍存活
+  → 与新Producer实例(epoch高)冲突
+  → 产生不一致的事务状态
+
+解决: 服务端防御
+  → Broker验证ProducerId+epoch
+  → epoch低的请求被拒绝(ProduceFencedException)
+  → 加强事务一致性保证
+
+4.0状态: Phase 2完成, 事务更健壮
+```
+
+#### KIP-1106 基于时间的偏移量重置
+
+```text
+KIP-1106 (4.0):
+
+auto.offset.reset 新增 duration 选项:
+  → 消费者可基于固定时间窗口重置偏移量
+  → 避免重新处理大量历史数据
+
+场景:
+  → 新消费者加入, 不想从头消费
+  → 只消费最近1小时的数据
+  → auto.offset.reset=duration=PT1H (最近1小时)
+```
+
+### 深入解析：迁移策略与工具
+
+```text
+ZK → KRaft 迁移 (3.4+):
+
+kafka-cluster.sh 工具:
+  → 迁移元数据从ZK到__cluster_metadata
+  → 支持不停机/滚动迁移
+
+迁移步骤:
+1. 准备KRaft Controller节点(新增3个)
+2. 在Broker配置中添加迁移参数
+3. kafka-cluster.sh 迁移元数据
+4. 验证迁移状态
+5. 切换Broker到KRaft模式
+6. 移除ZK集群
+
+迁移监控:
+  kafka-cluster.sh verify-migration-status
+  kafka-metadata-quorum.sh --describe
+
+4.0关键限制:
+  → 必须先迁KRaft再升4.0
+  → 4.0不再提供ZK入口
+  → 未迁的ZK集群无法直接升4.0
+
+升级路径:
+  2.x → 3.3+(获KRaft GA)
+      → 3.6-3.9(执行迁移)
+      → 4.0(移除ZK)
+```
+
+---
+
+## 面试题精选
+
+**Q1: Kafka 4.0 的 KRaft 模式是什么？和 ZooKeeper 模式有什么区别？**
+
+A: KRaft 是 Kafka 4.0 唯一支持的元数据管理模式，完全移除了 ZooKeeper。元数据存于内部主题 `__cluster_metadata`，由 Controller 仲裁用 Raft 共识维护。优势：①简化部署，无需 ZK 集群；②元数据传播毫秒级（ZK 秒级）；③支持百万级分区（ZK 数万）；④故障恢复秒级（ZK 分钟级）；⑤运维统一到一套系统。
+
+**Q2: KIP-848 新一代重平衡协议有什么优势？如何启用？**
+
+A: 优势：①无停止世界暂停，只有涉及分区的消费者受影响；②增量式协调，不阻塞 Fetch 和 Commit；③服务端驱动，客户端更轻量；④重平衡速度秒级（旧协议分钟级）；⑤session.timeout 等配置迁移到服务端。启用：客户端配置 `group.protocol=consumer`，4.0 服务端默认启用。
+
+**Q3: KIP-932 Queues for Kafka 是什么？**
+
+A: 引入 Share Group 概念，支持传统队列语义。同一分区可被多个消费者竞争消费（类似 RabbitMQ work queue），消息处理后 ack 确认，超时重新投递。适合任务分发场景（不关心顺序，关心吞吐）。4.0 为 Early Access 阶段。
+
+**Q4: Kafka 4.0 升级需要注意什么？**
+
+A：①必须先迁移到 KRaft 模式（未迁 ZK 集群无法直接升 4.0）；②Broker/Connect/Tools 需 Java 17+，Clients/Streams 需 Java 11+；③最低客户端协议版本 2.1（KIP-896 基线）；④消息格式 v0/v1 已移除（仅保留 v2）；⑤Log4j 升级到 Log4j2；⑥测试 KIP-848 新协议（`group.protocol=consumer`）。
+
+**Q5: KRaft 的 Controller Quorum 为什么需要奇数个节点？**
+
+A: Raft 共识要求多数派（N/2+1）确认才能提交日志。奇数个节点（3 或 5）能容忍少数派故障：3 节点容忍 1 个故障，5 节点容忍 2 个故障。偶数个节点（如 4）容忍数和 3 一样（容忍 1 个），但多一个节点成本，无收益。所以推荐 3 或 5 个 Controller。
+
+**Q6: 什么是 Pre-Vote 机制（KIP-996）？解决了什么问题？**
+
+A: Pre-Vote 是 4.0 引入的优化：节点在发起正式选举前，先 Pre-Vote 探查自己是否能获得多数票，不能则不发起选举。解决网络分区时少数派选出新 Leader、恢复后触发不必要选举风暴的问题。

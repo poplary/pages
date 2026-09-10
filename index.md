@@ -16,10 +16,8 @@
 - [06-安全监控与调优](Kafka/06-安全监控与调优) - 认证/授权/MirrorMaker/监控/调优
 - [07-Kafka Streams](Kafka/07-Kafka Streams) - 实时日志平台/Streams/DSL/金融应用
 - [08-KRaft与新版特性](Kafka/08-KRaft与新版特性) - KRaft详解(含5年演进/核心原理/迁移)
-- [Kafka 基础面试题](Kafka/Kafka基础面试题)
-- [Kafka 生产者与消费者面试题](Kafka/Kafka生产者与消费者面试题)
-- [Kafka 高级特性面试题](Kafka/Kafka高级特性面试题)
-- [Kafka 监控运维面试题](Kafka/Kafka监控运维面试题)
+
+> 各主题文件末尾已附「面试题精选」，原 4 个面试题文件已合并进去。
 
 ## MySQL
 - [MySQL 基础面试题](MySQL/MySQL基础面试题)
