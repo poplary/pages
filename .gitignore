@@ -1,3 +1,10 @@
 node_modules/
 .DS_Store
 Thumbs.db
+
+# PDF 原件（体积大，且为课程版权材料，不纳入仓库）
+*.pdf
+# 课程抓取的原始 JSON（含评论，体积大且与转换后 .md 冗余）
+Kafka/articleInfoList.json
+# 项目本地 skills（仅本机生效，避免仓库冗余）
+.pi/

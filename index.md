@@ -8,6 +8,7 @@
 - [Go 项目实战面试题](Go/Go项目实战面试题)
 
 ## Kafka
+- [Kafka 核心技术与实战·修订版](Kafka/Kafka核心技术与实战_修订版) ★基于4.0修订+KRaft
 - [Kafka 基础面试题](Kafka/Kafka基础面试题)
 - [Kafka 生产者与消费者面试题](Kafka/Kafka生产者与消费者面试题)
 - [Kafka 高级特性面试题](Kafka/Kafka高级特性面试题)
