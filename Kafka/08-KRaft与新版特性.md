@@ -514,14 +514,21 @@ KRaft 与 KIP-848（新消费者组协议）是 4.0 两大协同升级。KIP-848
 
 #### 配置示例
 
-```java
-// 启用新消费者组协议
-Properties props = new Properties();
-props.put("group.id", "my-group");
-props.put("group.protocol", "consumer");  // 4.0关键配置
+```go
+// kafka-go 消费组配置
 
-// 旧协议(默认,3.x):
-props.put("group.protocol", "classic");
+// 经典协议(3.x 默认, kafka-go 当前支持)
+r := kafka.NewReader(kafka.ReaderConfig{
+    Brokers: []string{"localhost:9092"},
+    Topic:   "orders",
+    GroupID: "my-group", // 有 GroupID 即走经典协议
+})
+
+// 新消费者组协议(KIP-848, 4.0+)
+// kafka-go 暂不支持 group.protocol=consumer
+// Java 客户端开启:
+//   props.put("group.protocol", "consumer");
+// kafka-go 仍走经典协议(4.0 服务端向后兼容)
 ```
 
 #### KRaft + KIP-848 + KIP-932 三亮点

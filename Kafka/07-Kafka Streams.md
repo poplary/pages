@@ -39,23 +39,41 @@ value.converter=org.apache.kafka.connect.storage.StringConverter
 
 #### Kafka Streams 实时统计示例
 
-```java
-// 实时统计ios/android请求数
-KStream<String,String> logs = builder.stream("nginx-logs");
+```go
+// kafka-go 无 Streams DSL, 用消费+生产+内存聚合实现等价逻辑
+// 实时统计 ios/android 请求数
 
-KTable<String,Long> iosCount = logs
-    .filter((k,v) -> v.contains("iPhone"))
-    .groupBy((k,v) -> "ios")
-    .count();
+r := kafka.NewReader(kafka.ReaderConfig{
+    Brokers: []string{"localhost:9092"},
+    Topic:   "nginx-logs",
+    GroupID: "counter-group",
+})
+w := &kafka.Writer{
+    Addr:  kafka.TCP("localhost:9092"),
+    // Topic 动态设置: ios-count / android-count
+}
 
-KTable<String,Long> androidCount = logs
-    .filter((k,v) -> v.contains("Android"))
-    .groupBy((k,v) -> "android")
-    .count();
-
-// 结果输出到主题
-androidCount.toStream().to("android-count");
-iosCount.toStream().to("ios-count");
+iosCount, androidCount := int64(0), int64(0)
+for {
+    m, err := r.ReadMessage(ctx)
+    if err != nil { break }
+    line := string(m.Value)
+    if strings.Contains(line, "iPhone") {
+        iosCount++
+        w.Topic = "ios-count"
+        w.WriteMessages(ctx, kafka.Message{
+            Value: []byte(strconv.FormatInt(iosCount, 10)),
+        })
+    }
+    if strings.Contains(line, "Android") {
+        androidCount++
+        w.Topic = "android-count"
+        w.WriteMessages(ctx, kafka.Message{
+            Value: []byte(strconv.FormatInt(androidCount, 10)),
+        })
+    }
+}
+// ⚠️ 无状态聚合(重启丢失), 生产级用 RocksDB/Redis 持久化
 ```
 
 ### 📌 版本提示
@@ -184,19 +202,43 @@ DSL支持: KStream/KTable 互转
 
 #### 时间窗口示例
 
-```java
-// 每分钟统计订单数
-KTable<Windowed<String>, Long> windowed = ordersStream
-    .windowedBy(TimeWindows.of(Duration.ofMinutes(1)))
-    .groupBy((k, v) -> v.get("userId"))
-    .count();
+```go
+// kafka-go 无窗口 API, 用定时器+内存聚合实现等价逻辑
+// 每分钟统计订单数(翻转窗口)
 
-// 滑动窗口
-TimeWindows.of(Duration.ofMinutes(5))
-    .slideBy(Duration.ofMinutes(1))  // 每1分钟滑动
+r := kafka.NewReader(kafka.ReaderConfig{
+    Brokers: []string{"localhost:9092"},
+    Topic:   "orders",
+    GroupID: "window-counter",
+})
 
-// 会话窗口(自动检测活动间隙)
-TimeWindows.ofTimeDifference(Duration.ofMinutes(5))
+// 翻转窗口(1分钟): 每60秒输出+重置
+type windowCount struct {
+    count int64
+    mu    sync.Mutex
+}
+wc := &windowCount{}
+ticker := time.NewTicker(time.Minute)
+defer ticker.Stop()
+
+go func() {
+    for range ticker.C {
+        wc.mu.Lock()
+        fmt.Printf("window count=%d\n", wc.count)
+        wc.count = 0 // 翻转: 重置
+        wc.mu.Unlock()
+    }
+}()
+
+for {
+    m, err := r.ReadMessage(ctx)
+    if err != nil { break }
+    wc.mu.Lock()
+    wc.count++
+    wc.mu.Unlock()
+}
+// 会话窗口: 按活动间隙切分, 需记录最后消息时间
+// 间隙 > 5min → 关闭旧会话, 开新会话
 ```
 
 ### 📌 版本提示
