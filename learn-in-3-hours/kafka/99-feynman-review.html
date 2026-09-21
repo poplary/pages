@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>99 · 费曼验收 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:8px}.blk p{font-size:15px}.blk ol{margin:6px 0 0 20px}.blk li{font-size:14px;margin:5px 0}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}th,td{border:1px solid #22314F;padding:6px 8px;text-align:left;vertical-align:top}th{background:#1A2440;color:#FBBF24}
+.q{background:#0E2A3C;border-left:3px solid #38BDF8;border-radius:6px;padding:8px 12px;margin:8px 0}.q .qt{color:#38BDF8;font-size:13px;font-weight:700}.q .qa{color:#8CA3C7;font-size:12px;margin-top:3px}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 3 幕 · 延伸 · 验收</span><span class="clk">165 / 180 分钟</span><span class="dur">预计 15 分钟</span></header>
+<h1><span class="no">99</span>费曼验收</h1>
+<p class="sub">讲得清，才算学会——合上前面 12 页，用大白话向外行讲一遍</p>
+
+<figure>
+<svg viewBox="0 0 880 410" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#FBBF24"/></marker></defs>
+<circle cx="440" cy="205" r="64" fill="#1A2440" stroke="#FBBF24" stroke-width="2"/>
+<text x="440" y="198" font-size="14" text-anchor="middle" fill="#FBBF24" font-weight="700">Kafka</text>
+<text x="440" y="216" font-size="10" text-anchor="middle" fill="#E8EFFA">不丢·不乱</text>
+<text x="440" y="230" font-size="10" text-anchor="middle" fill="#E8EFFA">不慢·可扩展</text>
+
+<line x1="440" y1="141" x2="440" y2="96" stroke="#38BDF8" stroke-width="2"/>
+<rect x="340" y="36" width="200" height="60" rx="8" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="440" y="56" font-size="13" text-anchor="middle" fill="#38BDF8">① 分区日志</text>
+<text x="440" y="74" font-size="10" text-anchor="middle" fill="#8CA3C7">账本 · offset 单调递增</text>
+<text x="440" y="88" font-size="10" text-anchor="middle" fill="#8CA3C7">分区 = 并行/扩展边界</text>
+
+<line x1="504" y1="205" x2="640" y2="205" stroke="#34D399" stroke-width="2"/>
+<rect x="640" y="150" width="220" height="110" rx="8" fill="#0E2A1A" stroke="#34D399"/>
+<text x="750" y="170" font-size="13" text-anchor="middle" fill="#34D399">② 副本与 ISR</text>
+<text x="660" y="190" font-size="10" fill="#8CA3C7">· Leader 唯一读写</text>
+<text x="660" y="206" font-size="10" fill="#8CA3C7">· Follower 拉取同步</text>
+<text x="660" y="222" font-size="10" fill="#8CA3C7">· HW = min(ISR LEO)</text>
+<text x="660" y="238" font-size="10" fill="#8CA3C7">· acks=0/1/all</text>
+<text x="660" y="254" font-size="10" fill="#8CA3C7">· 不读写分离</text>
+
+<line x1="440" y1="269" x2="440" y2="314" stroke="#A78BFA" stroke-width="2"/>
+<rect x="320" y="314" width="240" height="80" rx="8" fill="#1A1530" stroke="#A78BFA"/>
+<text x="440" y="334" font-size="13" text-anchor="middle" fill="#A78BFA">③ 消费者组与位移</text>
+<text x="340" y="354" font-size="10" fill="#8CA3C7">· 位移 = 书签（存内部主题）</text>
+<text x="340" y="370" font-size="10" fill="#8CA3C7">· 同组分页 / 跨组各读</text>
+<text x="340" y="386" font-size="10" fill="#8CA3C7">· 重平衡（KIP-848 增量）</text>
+
+<line x1="376" y1="205" x2="240" y2="205" stroke="#FBBF24" stroke-width="2"/>
+<rect x="20" y="150" width="220" height="110" rx="8" fill="#0E1A14" stroke="#FBBF24"/>
+<text x="130" y="170" font-size="13" text-anchor="middle" fill="#FBBF24">④ 性能底座</text>
+<text x="40" y="190" font-size="10" fill="#8CA3C7">· 顺序写（省寻道）</text>
+<text x="40" y="206" font-size="10" fill="#8CA3C7">· 页缓存（省等盘）</text>
+<text x="40" y="222" font-size="10" fill="#8CA3C7">· 零拷贝 sendfile</text>
+<text x="40" y="238" font-size="10" fill="#8CA3C7">· 攒批发送</text>
+<text x="40" y="254" font-size="10" fill="#8CA3C7">· 副本兜底持久性</text>
+
+<text x="440" y="402" font-size="11" text-anchor="middle" fill="#8CA3C7">延伸：KRaft（元数据自举）· Connect（搬运）· Streams（计算）· 全程统一事务/EOS</text>
+</svg>
+<figcaption>全程思维导图：四元概念围绕“不丢不乱不慢可扩展”的中心，延伸出 KRaft/Connect/Streams</figcaption>
+</figure>
+
+<div class="blk"><h2>🎤 复述挑战 5 题（先口答，再翻页自检）</h2>
+<div class="q"><div class="qt">Q1 向外行解释 Kafka 为什么“不丢消息”</div><div class="qa">要点：三端各设防——生产者 acks=all+重试+幂等带回调；Broker RF=3+MIR=2+unclean=false；消费者先处理后提交。回链第 08 页。</div></div>
+<div class="q"><div class="qt">Q2 解释 ISR 是什么、HW 怎么算、为什么 Follower 不抗读</div><div class="qa">要点：ISR=跟得上的副本集合，Leader 必从 ISR 选；HW=min(所有 ISR 副本 LEO)；Follower 不抗读是为 read-your-writes + 单调读。回链第 04 页。</div></div>
+<div class="q"><div class="qt">Q3 解释“一机制两模型”和位移存在哪</div><div class="qa">要点：同组=队列（每分区一人）、跨组=发布订阅（各读全量）；位移存内部主题 __consumer_offsets（Compact 策略不撑爆）。回链第 06 页。</div></div>
+<div class="q"><div class="qt">Q4 说出 Kafka 快的四板斧，每条省了什么</div><div class="qa">要点：顺序写省寻道、页缓存省等盘、零拷贝 sendfile 省拷贝、攒批发省往返。回链第 03 页。</div></div>
+<div class="q"><div class="qt">Q5 说出 4.0 KRaft 相比 ZK 的三大优势，为什么 Controller 要奇数个</div><div class="qa">要点：毫秒级传播/百万分区/单集群秒级恢复；奇数个才能形成多数派（N/2+1），偶数无收益。回链第 11 页。</div></div>
+</div>
+
+<div class="blk"><h2>🚧 易卡壳点 3 处（讲不下去就先看提示）</h2>
+<ol>
+<li><b>分区位移 vs 消费者位移</b>——卡在这最容易乱。提示：分区位移是消息的位置编号（不可变，账本的页码）；消费者位移是消费进度（可变，读者的书签）。一个在书里，一个在读者手里。</li>
+<li><b>幂等只保单分区单会话</b>——讲到“不重复”时容易过度承诺。提示：重启后 PID 变了，旧 PID 重发的不会被新 PID 去重；跨分区跨会话要事务 Producer（transactional.id + epoch 防僵尸）。</li>
+<li><b>HW 截断丢数据 vs Leader Epoch</b>——讲副本恢复时卡。提示：老机制按 HW 截断，网络分区脑裂时 HW 可能错乱→丢已提交消息；0.11 引入 Leader Epoch 按 epoch 的 LEO 截断，不依赖 HW，4.0 标准机制。</li>
+</ol>
+</div>
+
+<div class="blk"><h2>📚 类比库（本次全部类比 + 边界，留 2 行续写你自己的）</h2>
+<table>
+<tr><th>页</th><th>概念</th><th>类比</th><th>边界（哪里不成立）</th></tr>
+<tr><td>01</td><td>消息引擎</td><td>快递柜 + 蓄水池</td><td>柜取走就空；Kafka 读后仍在（按留存）</td></tr>
+<tr><td>02</td><td>分区日志</td><td>银行多窗口排号账本</td><td>账本会翻页丢弃；排号由 key 哈希定非时序</td></tr>
+<tr><td>03</td><td>高性能</td><td>搬砖一车皮拉走</td><td>SSD 差距缩小但顺序仍占优；零拷贝仅消费端</td></tr>
+<tr><td>04</td><td>副本/ISR</td><td>记账小队 + ISR 名单</td><td>MySQL 从库抗读，Kafka Follower 不抗读</td></tr>
+<tr><td>05</td><td>生产者</td><td>邮局分拣凑袋发运</td><td>幂等仅单分区单会话；增分区破坏 key 序</td></tr>
+<tr><td>06</td><td>消费者组</td><td>读书小组各夹书签</td><td>书签是“下一页”非“读完页”</td></tr>
+<tr><td>07</td><td>重平衡</td><td>小组重新分工</td><td>新协议非“零停机”，仍极小窗口</td></tr>
+<tr><td>08</td><td>不丢消息</td><td>寄贵重合同三手续</td><td>只保“已提交”；多数副本同坏仍丢</td></tr>
+<tr><td>09</td><td>积压/Lag</td><td>还高利贷马太效应</td><td>扩消费者超分区数无效；增分区破坏 key</td></tr>
+<tr><td>10</td><td>选型</td><td>中转仓 vs 快递员 vs 保价快递</td><td>小流量强路由用 RabbitMQ 更合适</td></tr>
+<tr><td>11</td><td>KRaft</td><td>公司自家账本 + 多数投票</td><td>Raft 管元数据不管消息；奇数节点</td></tr>
+<tr><td>12</td><td>生态</td><td>发动机/码头/加工车间</td><td>Streams 是库非集群；复杂拓扑推 Flink</td></tr>
+<tr><td>　</td><td>　</td><td>（你的类比）</td><td>　</td></tr>
+<tr><td>　</td><td>　</td><td>（你的类比）</td><td>　</td></tr>
+</table>
+</div>
+
+<div class="blk"><h2>🔗 延伸资源（3 小时只是入口，往下挖这些）</h2>
+<ol>
+<li>官方文档 <b>Design</b> 与 <b>Implementation</b> 章节——讲清为什么这么设计 — <a href="https://kafka.apache.org/documentation/" target="_blank">kafka.apache.org/documentation</a></li>
+<li><b>KIP 索引</b>——读 KIP-848（新消费组）、KIP-500（KRaft）原文 — <a href="https://cwiki.apache.org/confluence/display/KAFKA/Kafka+Improvement+Proposals" target="_blank">cwiki · KIP</a></li>
+<li>《Kafka: The Definitive Guide》2nd Edition · O'Reilly——权威指南，系统补全</li>
+<li>Confluent Developer 学习路径 + 博客——4.x 新特性第一手</li>
+<li>本地 ../Kafka/ 目录 42 讲专栏 + 01–09 修订笔记——逐篇精读，对照 4.0 视角</li>
+</ol>
+</div>
+
+<div class="gold"><div class="k">💡 结业金句</div><div class="v">讲得清，才算学会；用得上，才算没白学</div><div class="ch">🎤 最终挑战：找一个不懂技术的朋友，用 10 分钟讲完“Kafka 凭什么不丢不乱不慢可扩展”</div></div>
+<button class="done" id="doneBtn">✓ 学完此页（结业）</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="12-ecosystem.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a class="dis" href="javascript:void(0)">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=13; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）'+(d===14?' 🎉 全部学完！':'');}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页（结业）';upd();};upd()})();
+</script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>06 · 消费者组 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+.blk dt{color:#38BDF8;font-size:13px;margin-top:8px;font-weight:700}.blk dd{font-size:13px;color:#8CA3C7;margin:2px 0 2px 18px;line-height:1.6}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 1 幕 · 原理</span><span class="clk">62 / 180 分钟</span><span class="dur">预计 10 分钟</span></header>
+<h1><span class="no">06</span>消费者组与位移</h1>
+<p class="sub">一套机制同时实现两种模型；书签在读者手里，不在书里</p>
+
+<div class="blk"><h2>① 钩子</h2><p>100 万条消息积压，加 10 个消费者为什么能变快近 10 倍？而同样这 10 个消费者，怎么做到“不抢不漏不重复”？答案全在“消费者组 + 位移”这套机制里。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>你用过 Redis 的 SCAN 游标——用一个位置标记记住扫到哪了。Kafka 的“位移（offset）”是同一个思想，只是由<b>消费者自己</b>夹着，存在 Kafka 自己的内部主题里。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#A78BFA"/></marker></defs>
+<rect x="40" y="16" width="800" height="44" rx="8" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="440" y="36" font-size="12" text-anchor="middle" fill="#38BDF8">主题 orders · 6 个分区</text>
+<g font-size="10" fill="#E8EFFA">
+<rect x="60" y="44" width="110" height="14" rx="2" fill="#1F3A2C" stroke="#34D399"/><text x="115" y="55" text-anchor="middle">P0</text>
+<rect x="180" y="44" width="110" height="14" rx="2" fill="#1F3A2C" stroke="#34D399"/><text x="235" y="55" text-anchor="middle">P1</text>
+<rect x="300" y="44" width="110" height="14" rx="2" fill="#1F3A2C" stroke="#34D399"/><text x="355" y="55" text-anchor="middle">P2</text>
+<rect x="420" y="44" width="110" height="14" rx="2" fill="#1F3A2C" stroke="#34D399"/><text x="475" y="55" text-anchor="middle">P3</text>
+<rect x="540" y="44" width="110" height="14" rx="2" fill="#1F3A2C" stroke="#34D399"/><text x="595" y="55" text-anchor="middle">P4</text>
+<rect x="660" y="44" width="110" height="14" rx="2" fill="#1F3A2C" stroke="#34D399"/><text x="715" y="55" text-anchor="middle">P5</text>
+</g>
+<rect x="40" y="78" width="800" height="96" rx="10" fill="#1A1530" stroke="#A78BFA"/>
+<text x="60" y="98" font-size="12" fill="#A78BFA">消费者组 A · 同组 = 分工（每分区只归一个消费者）</text>
+<path d="M115,70 L115,80 M235,70 L235,80" stroke="#A78BFA" stroke-width="1.5"/>
+<path d="M115,80 L115,108 L235,108 L235,80" fill="none" stroke="#A78BFA" stroke-width="1.5"/>
+<line x1="175" y1="108" x2="175" y2="124" stroke="#A78BFA" stroke-width="2" marker-end="url(#ar)"/>
+<path d="M355,80 L355,108 L475,108 L475,80" fill="none" stroke="#A78BFA" stroke-width="1.5"/>
+<line x1="415" y1="108" x2="415" y2="124" stroke="#A78BFA" stroke-width="2" marker-end="url(#ar)"/>
+<path d="M595,80 L595,108 L715,108 L715,80" fill="none" stroke="#A78BFA" stroke-width="1.5"/>
+<line x1="655" y1="108" x2="655" y2="124" stroke="#A78BFA" stroke-width="2" marker-end="url(#ar)"/>
+<circle cx="175" cy="140" r="14" fill="#0E1626" stroke="#A78BFA" stroke-width="2"/><text x="175" y="144" font-size="11" text-anchor="middle" fill="#A78BFA">c0</text>
+<circle cx="415" cy="140" r="14" fill="#0E1626" stroke="#A78BFA" stroke-width="2"/><text x="415" y="144" font-size="11" text-anchor="middle" fill="#A78BFA">c1</text>
+<circle cx="655" cy="140" r="14" fill="#0E1626" stroke="#A78BFA" stroke-width="2"/><text x="655" y="144" font-size="11" text-anchor="middle" fill="#A78BFA">c2</text>
+<text x="175" y="166" font-size="9" text-anchor="middle" fill="#8CA3C7">书签位移=3</text>
+<text x="415" y="166" font-size="9" text-anchor="middle" fill="#8CA3C7">书签位移=5</text>
+<text x="655" y="166" font-size="9" text-anchor="middle" fill="#8CA3C7">书签位移=2</text>
+
+<rect x="40" y="188" width="800" height="56" rx="10" fill="none" stroke="#A78BFA" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="60" y="208" font-size="12" fill="#A78BFA">消费者组 B · 跨组 = 各读全量（发布订阅）</text>
+<text x="440" y="230" font-size="11" text-anchor="middle" fill="#8CA3C7">B 组对 6 个分区各有独立书签，与 A 组互不影响——同一条消息被两组各消费一次</text>
+
+<rect x="40" y="262" width="800" height="60" rx="8" fill="#0E2A1A" stroke="#34D399"/>
+<text x="60" y="282" font-size="12" fill="#34D399">位移主题 __consumer_offsets（默认 50 分区 · Compact 策略）</text>
+<text x="440" y="304" font-size="11" text-anchor="middle" fill="#8CA3C7">key=&lt;组,主题,分区&gt; value=位移+元数据；同 key 只留最新（Compact），书签不会无限堆积</text>
+</svg>
+<figcaption>一机制两模型：同组分工不重复（队列）、跨组各读各（发布订阅）；书签(位移)存内部主题，重启续读</figcaption>
+</figure>
+
+<div class="blk"><h2>技术细节</h2>
+<dl>
+<dt>__consumer_offsets 内部主题结构</dt>
+<dd>位移提交实际写入内部主题 __consumer_offsets，50 个分区（默认），按 group.id 哈希分散。Compact 清理策略：只保留每个 (group, 分区) 的最新位移——旧位移被截断回收，不会无限增长。所以“位移存 Kafka”不是拿一个外部 DB，而是复用自身的日志+Compact 机制。</dd>
+<dt>auto.offset.reset 的三种值</dt>
+<dd>消费者首次启动（或位移过期被 Compact 掉）时，从哪开始？earliest：从分区最老可用消息（日志头）开始——适合首次全量。latest：从最新（HW）开始——默认，适合只看新数据。none：无位移就抛异常——严格模式，强制先配位移。</dd>
+<dt>位移过期机制</dt>
+<dd><code>offsets.retention.minutes</code>（Broker 端，默认 7 天）：超过此时间未更新的位移记录被 Compact 清掉。消费者停超 7 天再启 → 位移记录没了 → 触发 auto.offset.reset 逻辑。可调大此值延长保留，或用外部位移管理（如存 DB）。</dd>
+</dl></div>
+
+<div class="blk"><h2>③ 类比</h2><p>读书小组：<b>一本书拆成 6 册</b>（6 分区），组内每人领几册各夹各的<b>书签</b>（位移）——谁读到哪、下次从哪续，全凭自己夹的书签。<b>另一个小组</b>能把 6 册都读一遍（各夹各的书签，互不干扰）。书签统一存在图书管理员的登记本上（<code>__consumer_offsets</code>）。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>书签是“下一页要读的位置”，不是“刚读完的那一页”——提交位移 N，意味着“&lt;N 的都读完了”。</li>
+<li>书签由消费者<b>自己夹</b>，Kafka 不管你夹得对不对：先处理后提交才不丢，先提交后处理会丢消息（详见第 08 页）。</li>
+<li>消费者数超过分区数就有人闲着——<b>分区数是并行度的上限</b>。想加消费者提速，先得有足够多的分区。</li>
+<li>位移主题用 <b>Compact</b>（同 key 留最新）而非按时间删，所以即使组长期运行，书签也不会撑爆磁盘。</li>
+</ul></div>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">书签在读者手里，不在书里</div><div class="ch">🎤 复述挑战：解释“一机制两模型”，以及位移存在哪、Compact 为什么不会撑爆</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="05-producer-journey.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="07-rebalance.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=6; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>

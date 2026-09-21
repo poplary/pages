@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>12 · 生态一页通 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+.blk dt{color:#38BDF8;font-size:13px;margin-top:8px;font-weight:700}.blk dd{font-size:13px;color:#8CA3C7;margin:2px 0 2px 18px;line-height:1.6}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}th,td{border:1px solid #22314F;padding:6px 8px;text-align:left;vertical-align:top}th{background:#1A2440;color:#FBBF24}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 3 幕 · 延伸 · 本幕末</span><span class="clk">155 / 180 分钟</span><span class="dur">预计 10 分钟</span></header>
+<h1><span class="no">12</span>生态一页通</h1>
+<p class="sub">一个日志层，长出整个生态——Connect 搬货，Streams 加工</p>
+
+<div class="blk"><h2>① 钩子</h2><p>学完核心四件套，Kafka 的故事就完了？不——“可回放的高吞吐账本”这层地基之上，长出了 Connect（搬运外部数据进出）和 Streams（就地做流式计算）。这两块是 Kafka 从“消息引擎”进化成“流处理平台”的拼图。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>你已经掌握 Core（日志+副本+组）。Connect 和 Streams 都不是新引擎，而是<b>建在 Core 之上的客户端</b>：Connect 是标准化的搬运工，Streams 是随应用跑的计算库——都吃同一个日志层。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 300" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#38BDF8"/></marker></defs>
+<rect x="16" y="20" width="260" height="160" rx="10" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="146" y="42" font-size="13" text-anchor="middle" fill="#38BDF8">Kafka Connect · 进出搬运</text>
+<text x="40" y="64" font-size="10" fill="#8CA3C7">源 Source（往里搬）</text>
+<rect x="40" y="70" width="100" height="22" rx="4" fill="#1F3A2C" stroke="#34D399"/><text x="90" y="85" font-size="9" text-anchor="middle" fill="#34D399">JDBC</text>
+<rect x="40" y="96" width="100" height="22" rx="4" fill="#1F3A2C" stroke="#34D399"/><text x="90" y="111" font-size="9" text-anchor="middle" fill="#34D399">Debezium CDC</text>
+<rect x="40" y="122" width="100" height="22" rx="4" fill="#1F3A2C" stroke="#34D399"/><text x="90" y="137" font-size="9" text-anchor="middle" fill="#34D399">文件/S3</text>
+<text x="160" y="64" font-size="10" fill="#8CA3C7">汇 Sink（往外搬）</text>
+<rect x="160" y="70" width="100" height="22" rx="4" fill="#16223A" stroke="#64748B"/><text x="210" y="85" font-size="9" text-anchor="middle" fill="#8CA3C7">Elasticsearch</text>
+<rect x="160" y="96" width="100" height="22" rx="4" fill="#16223A" stroke="#64748B"/><text x="210" y="111" font-size="9" text-anchor="middle" fill="#8CA3C7">HDFS/S3</text>
+<rect x="160" y="122" width="100" height="22" rx="4" fill="#16223A" stroke="#64748B"/><text x="210" y="137" font-size="9" text-anchor="middle" fill="#8CA3C7">数据库</text>
+<text x="146" y="166" font-size="9" text-anchor="middle" fill="#8CA3C7">标准化码头，免手写搬运代码</text>
+<line x1="276" y1="100" x2="306" y2="100" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+
+<rect x="306" y="20" width="270" height="160" rx="10" fill="#0E2A1A" stroke="#34D399" stroke-width="2"/>
+<text x="441" y="42" font-size="13" text-anchor="middle" fill="#34D399">Kafka Core</text>
+<text x="441" y="62" font-size="11" text-anchor="middle" fill="#34D399">可回放的高吞吐账本</text>
+<text x="441" y="84" font-size="10" text-anchor="middle" fill="#8CA3C7">日志 + 副本 + 消费者组</text>
+<text x="441" y="106" font-size="10" text-anchor="middle" fill="#8CA3C7">+ 批量/顺序IO 性能底座</text>
+<text x="441" y="138" font-size="9" text-anchor="middle" fill="#8CA3C7">Connect 和 Streams 都建在这层之上</text>
+<text x="441" y="158" font-size="9" text-anchor="middle" fill="#8CA3C7">共享同一套日志/位移/事务机制</text>
+<line x1="576" y1="100" x2="606" y2="100" stroke="#A78BFA" stroke-width="2" marker-end="url(#ar)"/>
+
+<rect x="606" y="20" width="258" height="160" rx="10" fill="#1A1530" stroke="#A78BFA"/>
+<text x="735" y="42" font-size="13" text-anchor="middle" fill="#A78BFA">Kafka Streams · 就地计算</text>
+<text x="630" y="64" font-size="10" fill="#8CA3C7">DSL 拓扑（声明式 DAG）</text>
+<rect x="626" y="70" width="218" height="24" rx="4" fill="#221A38" stroke="#A78BFA"/><text x="735" y="86" font-size="9" text-anchor="middle" fill="#A78BFA">stream → filter → map → groupBy → count</text>
+<text x="630" y="112" font-size="10" fill="#8CA3C7">有状态 → RocksDB 本地</text>
+<rect x="626" y="118" width="218" height="22" rx="4" fill="#221A38" stroke="#A78BFA"/><text x="735" y="133" font-size="9" text-anchor="middle" fill="#A78BFA">+ changelog 主题（容错恢复）</text>
+<text x="630" y="156" font-size="9" fill="#8CA3C7">是库不是集群，随应用同进程</text>
+<text x="630" y="172" font-size="9" fill="#8CA3C7">原生 EOS（基于事务）</text>
+
+<text x="440" y="208" font-size="13" text-anchor="middle" fill="#FBBF24">流表二元性：流 ⇄ 表 可互转</text>
+<rect x="120" y="220" width="280" height="40" rx="8" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="260" y="238" font-size="11" text-anchor="middle" fill="#38BDF8">流 KStream</text>
+<text x="260" y="254" font-size="9" text-anchor="middle" fill="#8CA3C7">每条消息 = 一个事件</text>
+<text x="430" y="244" font-size="14" text-anchor="middle" fill="#FBBF24">⇄ 聚合/变更 ⇄</text>
+<rect x="510" y="220" width="280" height="40" rx="8" fill="#1A1530" stroke="#A78BFA"/>
+<text x="650" y="238" font-size="11" text-anchor="middle" fill="#A78BFA">表 KTable</text>
+<text x="650" y="254" font-size="9" text-anchor="middle" fill="#8CA3C7">最新状态快照</text>
+<text x="440" y="282" font-size="10" text-anchor="middle" fill="#8CA3C7">流聚合即表，表变更即流——同一份数据的两种视角</text>
+</svg>
+<figcaption>三层生态：Connect 搬货、Core 存账、Streams 计算；流表二元性让“实时聚合”天然成立</figcaption>
+</figure>
+
+<div class="blk"><h2>Streams vs Flink / Spark 定位</h2>
+<table>
+<tr><th>维度</th><th>Kafka Streams</th><th>Flink / Spark Streaming</th></tr>
+<tr><td>形态</td><td>轻量客户端库（随应用进程）</td><td>独立集群系统</td></tr>
+<tr><td>部署</td><td>零运维，嵌应用</td><td>需独立集群调度</td></tr>
+<tr><td>EOS</td><td>原生（基于 Kafka 事务）</td><td>需借助 Kafka 事务</td></tr>
+<tr><td>适合</td><td>中小流量、简单拓扑</td><td>大规模、复杂窗口/状态</td></tr>
+</table>
+</div>
+
+<div class="blk"><h2>技术细节</h2>
+<dl>
+<dt>Connect 运行模式</dt>
+<dd>Standalone：单进程，适合小规模/测试，命令行 java -jar 直接跑。Distributed：多 Worker 组集群，REST API 管理 Connector，某 Worker 挂 → 其任务自动重分配到其他 Worker。任务（Task）是并行度单位，每个 Task 处理一部分分区——类似消费者组对分区的分配。</dd>
+<dt>Streams 状态存储与容错</dt>
+<dd>有状态操作（aggregate/count/join）→ 本地 RocksDB 状态存储 + changelog 主题（Compact）。容错：实例挂 → 新实例从 changelog 重建 RocksDB → 继续处理。RocksDB 在磁盘，changelog 在 Kafka——两层备份。无状态操作（filter/map）无需状态存储，实例挂了直接重启。</dd>
+<dt>MirrorMaker 2（跨集群复制）</dt>
+<dd>基于 Connect 框架的 Connector，自动检测源集群新主题并复制。配置：源→目标集群映射 + 复制因子 + 主题正则过滤。4.0 起 MM1 弃用，MM2 是唯一跨集群复制工具。用途：灾备、聚合、多区域。</dd>
+</dl></div>
+
+<div class="blk"><h2>③ 类比</h2><p>Core 是<b>发动机</b>（账本+副本+组），Connect 是<b>进货口/出货口</b>（标准化码头，免手写搬运），Streams 是<b>车载加工车间</b>（随车跑、就地算，不是独立车队）。流表二元性就像：账本流水（流）和资产负债表（表）是同一笔生意的两种看法。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>Streams 是<b>库不是集群</b>——没有独立调度/弹性部署，复杂拓扑和超大流量仍推 Flink。</li>
+<li>Schema 管理（消息结构注册/演进）官方核心不带，是 Confluent 生态的 Schema Registry——用需额外部署。</li>
+<li>跨集群备份用 MirrorMaker 2（4.0 起 MM1 弃用），不是 Streams 的职责。</li>
+</ul></div>
+
+<figure>
+<svg viewBox="0 0 880 110" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#34D399"/></marker></defs>
+<text x="440" y="22" font-size="13" text-anchor="middle" fill="#FBBF24">第 3 幕小结：延伸闭环</text>
+<rect x="40" y="40" width="240" height="50" rx="8" fill="#0E2A1A" stroke="#34D399"/>
+<text x="160" y="60" font-size="12" text-anchor="middle" fill="#34D399">KRaft 打底（11）</text>
+<text x="160" y="78" font-size="10" text-anchor="middle" fill="#8CA3C7">元数据自举，4.0 架构基线</text>
+<line x1="280" y1="65" x2="330" y2="65" stroke="#34D399" stroke-width="2" marker-end="url(#ar2)"/>
+<rect x="330" y="40" width="240" height="50" rx="8" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="450" y="60" font-size="12" text-anchor="middle" fill="#38BDF8">生态扩展（12）</text>
+<text x="450" y="78" font-size="10" text-anchor="middle" fill="#8CA3C7">Connect 搬货 + Streams 加工</text>
+<line x1="570" y1="65" x2="620" y2="65" stroke="#34D399" stroke-width="2" marker-end="url(#ar2)"/>
+<rect x="620" y="40" width="220" height="50" rx="8" fill="#1A1530" stroke="#A78BFA"/>
+<text x="730" y="60" font-size="12" text-anchor="middle" fill="#A78BFA">费曼验收（99）</text>
+<text x="730" y="78" font-size="10" text-anchor="middle" fill="#8CA3C7">讲得清才算学会</text>
+</svg>
+<figcaption>元数据打底 → 生态扩展 → 费曼验收：延伸幕收束于“能讲出来”</figcaption>
+</figure>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">一个日志层，长出整个生态</div><div class="ch">🎤 复述挑战：说出 Connect / Core / Streams 三层各解决什么，以及流表二元性</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="11-kraft-and-4.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="99-feynman-review.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=12; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>

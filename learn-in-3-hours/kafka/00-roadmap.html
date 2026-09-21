@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>00 · 学习地图 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}
+a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}
+.hd .clk{color:#8CA3C7;font-size:12px}
+.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:8px}
+.blk p{font-size:15px}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}
+figure svg{width:100%;height:auto;display:block}
+figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}
+.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}
+.gold .v{font-size:16px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}
+.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}
+.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}
+.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}
+.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}
+.pager a.dis{color:#3A4A6B;pointer-events:none}
+.pager a.home{color:#FBBF24}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:10px 0}
+.card{background:#121C30;border:1px solid #22314F;border-radius:10px;padding:12px 14px}
+.card .n{color:#FBBF24;font-size:13px;font-weight:700}
+.card .t{color:#38BDF8;font-size:14px;font-weight:700;margin:2px 0 4px}
+.card .d{color:#8CA3C7;font-size:12px}
+.src{font-size:13px;color:#8CA3C7;margin:0 0 0 18px}
+.src li{margin:5px 0}
+.actrow{margin:8px 0}
+.actrow .at{color:#FBBF24;font-size:13px;font-weight:700;margin-bottom:5px}
+.pl{display:flex;flex-wrap:wrap;gap:6px}
+.pl a{background:#121C30;border:1px solid #22314F;border-radius:8px;padding:5px 10px;font-size:12px;color:#38BDF8}
+.pl a.got{border-color:#34D399;color:#34D399}
+.theme{font-size:13px;color:#8CA3C7}
+.theme b{color:#38BDF8}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd">
+<span class="act">第 0 幕 · 立靶</span>
+<span class="clk">0 / 180 分钟</span>
+<span class="dur">预计 5 分钟</span>
+</header>
+<h1>三小时学 Kafka · 学习地图</h1>
+<p class="sub">14 页 · 四幕 · 一条主线：Kafka 凭什么做到“不丢、不乱、不慢、可扩展”</p>
+
+<div class="gold">
+<div class="k">🎯 靶心问题</div>
+<div class="v">学完这 3 小时，你能向一个完全外行的朋友讲清楚 Kafka 凭什么做到“不丢、不乱、不慢、还能水平扩展”，并能在真实项目里做对关键配置、看懂常见报错。</div>
+</div>
+
+<figure>
+<svg viewBox="0 0 920 310" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#38BDF8"/></marker></defs>
+<text x="20" y="22" font-size="14" fill="#FBBF24" font-weight="700">① 分区日志</text>
+<text x="180" y="22" font-size="14" fill="#FBBF24" font-weight="700">② 副本与 ISR</text>
+<text x="360" y="22" font-size="14" fill="#FBBF24" font-weight="700">③ 消费者组与位移</text>
+<text x="560" y="22" font-size="14" fill="#FBBF24" font-weight="700">④ 批量与顺序 IO</text>
+<rect x="16" y="120" width="110" height="64" rx="8" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="71" y="148" font-size="14" text-anchor="middle" fill="#38BDF8">生产者</text>
+<text x="71" y="168" font-size="11" text-anchor="middle" fill="#8CA3C7">攒批发送</text>
+<line x1="126" y1="152" x2="178" y2="152" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="178" y="44" width="496" height="186" rx="10" fill="#0E1626" stroke="#22314F" stroke-dasharray="5 3"/>
+<text x="426" y="64" font-size="13" text-anchor="middle" fill="#FBBF24">Kafka 集群 · 主题 orders（3 个分区账本）</text>
+<g font-size="11" fill="#E8EFFA">
+<rect x="206" y="92" width="110" height="24" rx="4" fill="#16223A" stroke="#38BDF8"/><text x="261" y="108" text-anchor="middle" fill="#38BDF8">分区 0</text>
+<rect x="218" y="120" width="86" height="20" rx="3" fill="#1F3A2C" stroke="#34D399"/><text x="261" y="134" text-anchor="middle">offset 0</text>
+<rect x="218" y="142" width="86" height="20" rx="3" fill="#1F3A2C" stroke="#34D399"/><text x="261" y="156" text-anchor="middle">offset 1</text>
+<rect x="218" y="164" width="86" height="20" rx="3" fill="#1F3A2C" stroke="#34D399"/><text x="261" y="178" text-anchor="middle">offset 2</text>
+<rect x="218" y="186" width="86" height="20" rx="3" fill="#2A2238" stroke="#A78BFA"/><text x="261" y="200" text-anchor="middle" fill="#A78BFA">只追加 ↓</text>
+<rect x="390" y="92" width="110" height="24" rx="4" fill="#16223A" stroke="#38BDF8"/><text x="445" y="108" text-anchor="middle" fill="#38BDF8">分区 1</text>
+<rect x="402" y="120" width="86" height="20" rx="3" fill="#1F3A2C" stroke="#34D399"/><text x="445" y="134" text-anchor="middle">offset 0</text>
+<rect x="402" y="142" width="86" height="20" rx="3" fill="#1F3A2C" stroke="#34D399"/><text x="445" y="156" text-anchor="middle">offset 1</text>
+<rect x="402" y="164" width="86" height="20" rx="3" fill="#1F3A2C" stroke="#34D399"/><text x="445" y="178" text-anchor="middle">offset 2</text>
+<rect x="574" y="92" width="110" height="24" rx="4" fill="#16223A" stroke="#38BDF8"/><text x="629" y="108" text-anchor="middle" fill="#38BDF8">分区 2</text>
+<rect x="586" y="120" width="86" height="20" rx="3" fill="#1F3A2C" stroke="#34D399"/><text x="629" y="134" text-anchor="middle">offset 0</text>
+<rect x="586" y="142" width="86" height="20" rx="3" fill="#1F3A2C" stroke="#34D399"/><text x="629" y="156" text-anchor="middle">offset 1</text>
+</g>
+<g font-size="11">
+<circle cx="240" cy="92" r="5" fill="#FBBF24"/><circle cx="252" cy="92" r="5" fill="none" stroke="#34D399"/><circle cx="264" cy="92" r="5" fill="none" stroke="#34D399"/>
+<text x="278" y="96" fill="#34D399">ISR（同步副本集合）</text>
+</g>
+<line x1="674" y1="152" x2="710" y2="152" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="710" y="92" width="194" height="68" rx="8" fill="#1A1530" stroke="#A78BFA"/>
+<text x="807" y="112" font-size="12" text-anchor="middle" fill="#A78BFA">消费者组 A ③</text>
+<circle cx="748" cy="140" r="13" fill="#0E1626" stroke="#A78BFA"/><text x="748" y="144" font-size="10" text-anchor="middle" fill="#A78BFA">c0</text>
+<circle cx="807" cy="140" r="13" fill="#0E1626" stroke="#A78BFA"/><text x="807" y="144" font-size="10" text-anchor="middle" fill="#A78BFA">c1</text>
+<circle cx="866" cy="140" r="13" fill="#0E1626" stroke="#A78BFA"/><text x="866" y="144" font-size="10" text-anchor="middle" fill="#A78BFA">c2</text>
+<rect x="710" y="172" width="194" height="48" rx="8" fill="none" stroke="#A78BFA" stroke-dasharray="4 3"/>
+<text x="807" y="192" font-size="12" text-anchor="middle" fill="#A78BFA">消费者组 B</text>
+<text x="807" y="210" font-size="11" text-anchor="middle" fill="#8CA3C7">另起一组 · 各读全量</text>
+<rect x="16" y="252" width="888" height="44" rx="8" fill="#0E1A14" stroke="#34D399" stroke-dasharray="3 3"/>
+<text x="34" y="278" font-size="12" fill="#34D399" font-weight="700">④ 性能底座</text>
+<text x="200" y="278" font-size="13" text-anchor="middle" fill="#E8EFFA">顺序写</text>
+<text x="360" y="278" font-size="13" text-anchor="middle" fill="#E8EFFA">页缓存</text>
+<text x="520" y="278" font-size="13" text-anchor="middle" fill="#E8EFFA">零拷贝</text>
+<text x="700" y="278" font-size="13" text-anchor="middle" fill="#E8EFFA">攒批发送</text>
+</svg>
+<figcaption>四元概念一图：生产者→分区账本（多副本保不丢）→消费者组（位移分页保扩展）；底下是性能地基</figcaption>
+</figure>
+
+<div class="blk">
+<h2>🧠 四个元概念（全领域反复依赖的底层概念）</h2>
+<div class="cards">
+<div class="card"><div class="n">①</div><div class="t">分区日志</div><div class="d">消息不是“取走就没了的队列”，而是写进只能往后追加的账本；一个主题切成多本平行账本并行读写。</div></div>
+<div class="card"><div class="n">②</div><div class="t">副本与 ISR</div><div class="d">每本账在不同机器各抄一份，跟得上进度的副本（ISR）才有资格在 Leader 挂掉时接班。</div></div>
+<div class="card"><div class="n">③</div><div class="t">消费者组与位移</div><div class="d">每个消费者拿“书签”记自己读到哪；组内一页一人不重复，组外各读各的全量。</div></div>
+<div class="card"><div class="n">④</div><div class="t">批量与顺序 IO</div><div class="d">快的全部秘密：顺序写磁盘、页缓存、零拷贝、攒批发送，用 batching 换吞吐。</div></div>
+</div>
+</div>
+
+<div class="blk">
+<h2>⏱ 四幕时间表（180 分钟）</h2>
+<div class="actrow"><div class="at">第 0 幕 · 立靶（0:00–0:20，20 分钟）</div>
+<div class="pl" id="pl0"></div></div>
+<div class="actrow"><div class="at">第 1 幕 · 原理（0:20–1:20，60 分钟）——四元概念展开</div>
+<div class="pl" id="pl1"></div></div>
+<div class="actrow"><div class="at">第 2 幕 · 应用（1:20–2:20，60 分钟）——能配、能排、会选型</div>
+<div class="pl" id="pl2"></div></div>
+<div class="actrow"><div class="at">第 3 幕 · 延伸（2:20–3:00，40 分钟）——前沿与验收</div>
+<div class="pl" id="pl3"></div></div>
+</div>
+
+<div class="blk">
+<h2>📚 信息源</h2>
+<ol class="src">
+<li>Apache Kafka 官方文档（Key Concepts / Design / Implementation）— <a href="https://kafka.apache.org/documentation/" target="_blank">kafka.apache.org/documentation</a></li>
+<li>Apache Kafka 官方博客（4.x 系列发布公告）— <a href="https://kafka.apache.org/blog/" target="_blank">kafka.apache.org/blog</a></li>
+<li>Kafka Improvement Proposals 索引（KIP-848 / KIP-500 等）— <a href="https://cwiki.apache.org/confluence/display/KAFKA/Kafka+Improvement+Proposals" target="_blank">cwiki.apache.org · KIP</a></li>
+<li>《Kafka 核心技术与实战》胡夕 · 极客时间 42 讲（本地 ../Kafka/ 目录，2019 基线 2.3）</li>
+<li>本地学习笔记 01–09（已按 Kafka 4.0 修订）— ../Kafka/01~09-*.md</li>
+<li>《Kafka: The Definitive Guide》2nd Edition · O'Reilly</li>
+</ol>
+</div>
+
+<div class="blk">
+<h2>🎨 视觉主题与版本基线</h2>
+<p class="theme">主题“深空数据流”：<b>深空蓝底</b> #0B1220 · <b>数据青</b> #38BDF8 · <b>账本琥珀</b> #FBBF24 · <b>同步绿</b> #34D399 · <b>消费紫</b> #A78BFA。全程统一配色，中途不换。<br>
+版本基线：以 <b>Apache Kafka 4.x</b> 为准（4.0 移除 ZooKeeper，KRaft 唯一元数据模式，KIP-848 新消费组协议 GA；官网当前已迭代至 4.3）。凡 2.x 时代资料中与 KRaft 冲突处，一律以 4.x 视角重述。</p>
+</div>
+
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a class="dis" href="javascript:void(0)">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="01-what-is-kafka.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const TITLES=["学习地图","Kafka 是什么","分区日志","为什么快","副本与 ISR","生产者之旅","消费者组","重平衡","不丢消息","积压与 Lag","场景与选型","KRaft 与 4.0","生态一页通","费曼验收"];
+const DUR=[5,15,10,10,12,10,10,8,20,20,20,15,10,15];
+const ACTS=[["00-roadmap.html","01-what-is-kafka.html"],["02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html"],["08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html"],["11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"]];
+const CUR=0; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function buildMap(){
+let t0=0;
+ACTS.forEach((files,ai)=>{
+const el=document.getElementById('pl'+ai);
+let acc=0;
+files.forEach((f,i)=>{
+const idx=PAGES.indexOf(f);
+const d=DUR[idx];
+acc+=d;
+const done=localStorage.getItem(KEY+idx)==='1';
+const a=document.createElement('a');
+a.className='plink'+(done?' got':'');
+a.href=f; a.dataset.idx=idx;
+a.textContent=(idx<10?'0':'')+idx+' '+TITLES[idx]+' · '+d+'分'+(done?' ✓':'');
+el.appendChild(a);
+});
+});
+}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent='学习进度：'+d+' / '+PAGES.length+' 页（'+pct+'%）';}
+(function(){buildMap();const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();document.querySelectorAll('.plink').forEach(a=>{const i=+a.dataset.idx;a.classList.toggle('got',localStorage.getItem(KEY+i)==='1');a.textContent=(i<10?'0':'')+i+' '+TITLES[i]+' · '+DUR[i]+'分'+(localStorage.getItem(KEY+i)==='1'?' ✓':'')});};upd()})();
+</script>
+</body>
+</html>

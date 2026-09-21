@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>01 · Kafka 是什么 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}
+.hd .clk{color:#8CA3C7;font-size:12px}
+.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}
+.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+.blk dt{color:#38BDF8;font-size:13px;margin-top:8px;font-weight:700}.blk dd{font-size:13px;color:#8CA3C7;margin:2px 0 2px 18px;line-height:1.6}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}
+figure svg{width:100%;height:auto;display:block}
+figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}
+.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}
+.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}
+.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}
+.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}
+.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 0 幕 · 立靶</span><span class="clk">5 / 180 分钟</span><span class="dur">预计 15 分钟</span></header>
+<h1><span class="no">01</span>Kafka 是什么</h1>
+<p class="sub">它不只是一个消息队列，而是系统之间的缓冲带</p>
+
+<div class="blk"><h2>① 钩子</h2><p>双十一零点，订单系统每秒涌入 10 万单，后端数据库为什么没被当场打死？——中间一定有个东西，把洪峰接住、按下游的能力慢慢放水。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>你用过 Redis 当高速字典、写过 HTTP 同步调用。可一旦遇到“上游瞬时洪峰 + 下游处理慢 + 还要跨系统解耦”，这三样都救不了你：Redis 是内存字典不是缓冲带，HTTP 同步调用会把慢的一端拖死整条链路。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 290" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#38BDF8"/></marker></defs>
+<rect x="16" y="24" width="190" height="86" rx="10" fill="#3A1A1A" stroke="#F87171"/>
+<text x="111" y="46" font-size="13" text-anchor="middle" fill="#F87171">秒杀上游</text>
+<text x="111" y="66" font-size="12" text-anchor="middle" fill="#E8EFFA">10 万 TPS</text>
+<polyline points="40,104 56,84 72,102 88,80 104,100 120,82 136,100 152,84 168,100 184,90" fill="none" stroke="#F87171" stroke-width="1.5"/>
+<line x1="206" y1="67" x2="246" y2="67" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="246" y="20" width="388" height="94" rx="12" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="440" y="46" font-size="14" text-anchor="middle" fill="#38BDF8">Kafka · 蓄水池（消息引擎）</text>
+<text x="440" y="66" font-size="12" text-anchor="middle" fill="#8CA3C7">削峰填谷 · 保留 7 天</text>
+<polyline points="270,88 310,80 350,86 390,78 430,86 470,80 510,86 550,78 590,86 620,82" fill="none" stroke="#38BDF8" stroke-width="1.5"/>
+<line x1="634" y1="67" x2="674" y2="67" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="674" y="24" width="190" height="86" rx="10" fill="#0E2A1A" stroke="#34D399"/>
+<text x="769" y="46" font-size="13" text-anchor="middle" fill="#34D399">下游服务</text>
+<text x="769" y="66" font-size="12" text-anchor="middle" fill="#E8EFFA">1 万 TPS · 平稳</text>
+<line x1="700" y1="92" x2="840" y2="92" stroke="#34D399" stroke-width="1.5"/>
+
+<rect x="16" y="130" width="410" height="150" rx="10" fill="#121C30" stroke="#22314F"/>
+<text x="221" y="154" font-size="13" text-anchor="middle" fill="#A78BFA">同组 = 队列模型（一条消息只给组内一个人）</text>
+<rect x="36" y="196" width="80" height="38" rx="6" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="76" y="220" font-size="12" text-anchor="middle" fill="#38BDF8">生产者</text>
+<line x1="116" y1="215" x2="150" y2="215" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="150" y="192" width="120" height="46" rx="6" fill="#16223A" stroke="#A78BFA"/>
+<text x="210" y="220" font-size="12" text-anchor="middle" fill="#A78BFA">Topic</text>
+<line x1="270" y1="215" x2="300" y2="215" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="300" y="196" width="90" height="38" rx="6" fill="#0E2A1A" stroke="#34D399"/>
+<text x="345" y="220" font-size="12" text-anchor="middle" fill="#34D399">c1 ✓ 消费</text>
+
+<rect x="454" y="130" width="410" height="150" rx="10" fill="#121C30" stroke="#22314F"/>
+<text x="659" y="154" font-size="13" text-anchor="middle" fill="#A78BFA">不同组 = 发布订阅（各组各收一份）</text>
+<rect x="560" y="192" width="120" height="46" rx="6" fill="#16223A" stroke="#A78BFA"/>
+<text x="620" y="220" font-size="12" text-anchor="middle" fill="#A78BFA">Topic</text>
+<line x1="680" y1="205" x2="700" y2="205" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="680" y1="223" x2="700" y2="223" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="700" y="186" width="90" height="38" rx="6" fill="#0E2A1A" stroke="#34D399"/>
+<text x="745" y="210" font-size="12" text-anchor="middle" fill="#34D399">组A ✓</text>
+<rect x="700" y="228" width="90" height="38" rx="6" fill="#0E2A1A" stroke="#34D399"/>
+<text x="745" y="252" font-size="12" text-anchor="middle" fill="#34D399">组B ✓</text>
+</svg>
+<figcaption>削峰填谷：洪峰进 Kafka 蓄水池，下游按能力平稳抽水；一机制两模型：同组分工不重复、跨组各读各的</figcaption>
+</figure>
+
+<div class="blk"><h2>技术细节</h2>
+<dl>
+<dt>消息引擎：与 RabbitMQ / RocketMQ 的本质区别</dt>
+<dd>Kafka 是日志模型（消费后数据不删，按留存期保留），RabbitMQ 是队列模型（消费后消息移除）。日志模型 → 可回放、多下游各读各、天然持久化。队列模型 → 取走即没、路由灵活、内存友好。选哪个取决于业务是否需要“回放”和“多下游独立消费”。</dd>
+<dt>流处理平台：为什么 Streams 是库不是集群</dt>
+<dd>Streams 嵌在你的应用 JAR 里，与业务代码同进程，无需独立运维一套集群。代价：无独立调度/弹性扩缩容——实例数 = 你部署的 JVM 个数，增减靠 K8s/运维，不是自动的。适合中小流量、拓扑简单的场景；大规模复杂窗口/状态仍推 Flink。</dd>
+<dt>存储系统：与 MySQL/Redis 的定位差异</dt>
+<dd>Kafka 不是 DB——不支持按 key 查询、没有索引、没有 ACID 事务跨表。但它能做“事件源”（Event Sourcing）：把状态变更事件存入 Kafka，任意时刻从 offset 0 重放 = 重建完整状态。配合 Compact 主题，每个 key 只留最新值，近似一张“可重放的 KV 表”。</dd>
+</dl></div>
+
+<div class="blk"><h2>③ 类比</h2><p>Kafka 像小区的<b>快递柜 + 蓄水池</b>：上游随手把包裹塞进柜里就走（异步、不阻塞），下游按自己的节奏来取。关键差别——包裹取走后柜里还留着一份记录（账本），所以另一个小区也能来取一份。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>快递柜取走就空了；Kafka 的消息读后仍在（按留存保留，默认 7 天）——这是“账本”不是“队列”。</li>
+<li>蓄水池会溢出：磁盘写满、或留存时间到点，老消息会被删除，不是无限保留。</li>
+<li>消息是二进制字节，语义由你自己定——Kafka 不懂你的业务，只管搬运和留存。</li>
+</ul></div>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">消息引擎，是系统之间的缓冲带</div><div class="ch">🎤 复述挑战：合上页面，向朋友解释“为什么秒杀系统中间非放个 Kafka 不可”</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="00-roadmap.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="02-partitioned-log.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=1; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>11 · KRaft 与 4.0 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+.blk dt{color:#38BDF8;font-size:13px;margin-top:8px;font-weight:700}.blk dd{font-size:13px;color:#8CA3C7;margin:2px 0 2px 18px;line-height:1.6}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}th,td{border:1px solid #22314F;padding:6px 8px;text-align:left;vertical-align:top}th{background:#1A2440;color:#FBBF24}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 3 幕 · 延伸</span><span class="clk">140 / 180 分钟</span><span class="dur">预计 15 分钟</span></header>
+<h1><span class="no">11</span>KRaft 与 Kafka 4.0</h1>
+<p class="sub">Kafka 自己就是个分布式系统——谁来管它自己</p>
+
+<div class="blk"><h2>① 钩子</h2><p>Kafka 管着别人家的分布式数据，可它自己也是个分布式系统——一群 Broker，谁当老大、谁记元数据？以前 Kafka 旁边总得站一个 ZooKeeper 当“秘书”，4.0 起 Kafka 把秘书炒了，自己管自己。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>Redis Cluster 用 gossip 协调、MySQL 用主从——分布式系统总要个“管家”维护元数据（哪些主题、分区 Leader 在哪、谁上下线）。ZK 就是 Kafka 雇的外部管家；KRaft 是把管家职能收回 Kafka 自己。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#38BDF8"/></marker></defs>
+<text x="440" y="20" font-size="12" text-anchor="middle" fill="#8CA3C7">演进时间线</text>
+<line x1="40" y1="40" x2="840" y2="40" stroke="#22314F" stroke-width="2"/>
+<g font-size="9" fill="#8CA3C7">
+<circle cx="80" cy="40" r="4" fill="#64748B"/><text x="80" y="58" text-anchor="middle">2.8 预览</text>
+<circle cx="200" cy="40" r="4" fill="#64748B"/><text x="200" y="58" text-anchor="middle">3.0</text>
+<circle cx="330" cy="40" r="5" fill="#FBBF24"/><text x="330" y="58" text-anchor="middle" fill="#FBBF24">3.3 GA</text>
+<circle cx="460" cy="40" r="4" fill="#64748B"/><text x="460" y="58" text-anchor="middle">3.9</text>
+<circle cx="600" cy="40" r="6" fill="#34D399"/><text x="600" y="58" text-anchor="middle" fill="#34D399">4.0 移除 ZK</text>
+<circle cx="760" cy="40" r="4" fill="#38BDF8"/><text x="760" y="58" text-anchor="middle" fill="#38BDF8">4.1–4.3</text>
+</g>
+
+<rect x="16" y="80" width="410" height="180" rx="10" fill="#2A1414" stroke="#F87171" stroke-width="1.5"/>
+<text x="221" y="102" font-size="13" text-anchor="middle" fill="#F87171">ZK 时代（≤3.2）· 双集群</text>
+<rect x="40" y="118" width="160" height="50" rx="6" fill="#3A1A1A" stroke="#F87171"/>
+<text x="120" y="138" font-size="12" text-anchor="middle" fill="#F87171">ZK 集群（外部）</text>
+<text x="120" y="156" font-size="9" text-anchor="middle" fill="#8CA3C7">存元数据 znode</text>
+<line x1="120" y1="168" x2="120" y2="186" stroke="#F87171" stroke-width="2" marker-end="url(#ar)"/>
+<text x="160" y="180" font-size="9" fill="#8CA3C7">Broker 启动拉全量</text>
+<rect x="240" y="118" width="160" height="50" rx="6" fill="#16223A" stroke="#64748B"/>
+<text x="320" y="138" font-size="12" text-anchor="middle" fill="#8CA3C7">Kafka 集群</text>
+<text x="320" y="156" font-size="9" text-anchor="middle" fill="#8CA3C7">Controller 抢 /controller</text>
+<text x="40" y="200" font-size="10" fill="#F87171">痛点：①启动慢 ②Controller 单点写 ③双集群运维</text>
+<text x="40" y="218" font-size="10" fill="#8CA3C7">大集群(数千分区)启动可达数十分钟</text>
+<text x="40" y="236" font-size="10" fill="#8CA3C7">元数据更新串行，受限 ZK 写入</text>
+<text x="40" y="254" font-size="10" fill="#8CA3C7">两套监控/部署/备份</text>
+
+<rect x="454" y="80" width="410" height="180" rx="10" fill="#0E2A1A" stroke="#34D399" stroke-width="1.5"/>
+<text x="659" y="102" font-size="13" text-anchor="middle" fill="#34D399">KRaft 时代（3.3 GA · 4.0 唯一）· 单系统自举</text>
+<rect x="480" y="118" width="360" height="50" rx="6" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="660" y="138" font-size="12" text-anchor="middle" fill="#38BDF8">Kafka 集群（含 __cluster_metadata 主题）</text>
+<text x="660" y="156" font-size="9" text-anchor="middle" fill="#8CA3C7">元数据存自己的日志，Raft 复制</text>
+<g font-size="9">
+<circle cx="520" cy="190" r="6" fill="#FBBF24"/><text x="520" y="210" text-anchor="middle" fill="#FBBF24">C0 主</text>
+<circle cx="600" cy="190" r="6" fill="none" stroke="#34D399"/><text x="600" y="210" text-anchor="middle" fill="#34D399">C1</text>
+<circle cx="680" cy="190" r="6" fill="none" stroke="#34D399"/><text x="680" y="210" text-anchor="middle" fill="#34D399">C2</text>
+</g>
+<text x="760" y="200" font-size="9" text-anchor="middle" fill="#8CA3C7">Controller 仲裁</text>
+<text x="760" y="214" font-size="9" text-anchor="middle" fill="#8CA3C7">多数派(N/2+1)可写</text>
+<text x="476" y="236" font-size="10" fill="#34D399">优势：①毫秒级传播 ②百万分区 ③单集群 ④秒级恢复</text>
+<text x="476" y="254" font-size="10" fill="#8CA3C7">奇数个 Controller（3 或 5），容忍少数派故障</text>
+
+<text x="440" y="290" font-size="11" text-anchor="middle" fill="#FBBF24">4.0 三大架构亮点</text>
+<text x="440" y="308" font-size="11" text-anchor="middle" fill="#8CA3C7">KRaft（元数据自举）+ KIP-848（新消费组协议）+ KIP-932（队列语义 share group）</text>
+<text x="440" y="324" font-size="10" text-anchor="middle" fill="#8CA3C7">升级 4.0 前提：必须先从 ZK 迁到 KRaft（3.6+ 迁移路径成熟），未迁的 ZK 集群无法直跳 4.0</text>
+</svg>
+<figcaption>从“外包秘书”到“自家账本”：元数据收回 Kafka 内部，用 Raft 管自己</figcaption>
+</figure>
+
+<div class="blk"><h2>技术细节</h2>
+<dl>
+<dt>Raft 协议在 KRaft 中的角色</dt>
+<dd>Raft 负责两件事：① Leader 选举（多数派投票选主，选举超时后发起）；② 元数据日志复制（Leader 写 → 多数 ISR 确认 → 提交）。与 Kafka 消息副本机制同构，但作用域不同：Raft 管 __cluster_metadata 主题（元数据：主题/分区/配置/ISR），消息数据的副本靠第 04 页的机制。</dd>
+<dt>Controller 仲裁 vs 消息分区 Leader</dt>
+<dd>Controller 仲裁 = 集群全局元数据的主节点（3 或 5 个 Controller 节点 Raft 仲裁）。消息分区 Leader = 每个分区各自的读写主（可分布在任意 Broker）。两者独立：Controller 节点挂不影响已有分区的读写（Leader 不变），只影响元数据变更（创建主题/重平衡等）。</dd>
+<dt>ZK → KRaft 迁移路径</dt>
+<dd>3.6+ 提供迁移工具：① 在 ZK 模式下运行迁移命令 → ② 工具把 ZK 元数据快照灌入 __cluster_metadata → ③ Broker 逐个重启为 KRaft 模式 → ④ 迁移完成后可移除 ZK。4.0 不再支持 ZK 模式，必须在 3.6–3.9 完成迁移后才能升级 4.0。</dd>
+</dl></div>
+
+<div class="blk"><h2>③ 类比</h2><p>公司原来<b>外聘秘书公司</b>（ZK）管组织架构表，员工上下班、部门调整都找秘书登记；现在把组织架构表写进<b>自家账本</b>（<code>__cluster_metadata</code> 主题），谁来记账由<b>多数投票</b>（Raft）决定，所有员工订阅账本变更——一套系统全搞定。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>Raft 多数派意味着 3 个 Controller 只能容忍挂 1 个（5 个容忍 2 个）——所以 Controller 节点要奇数个。</li>
+<li>KRaft 管的是<b>元数据</b>（谁是谁、Leader 在哪），不管<b>消息数据</b>——消息数据仍靠副本机制（第 04 页）。</li>
+<li>4.0 是分水岭，但<b>不能从 ZK 直跳 4.0</b>：必须先在 3.6–3.9 完成迁移，再升 4.0。</li>
+<li>KIP-848 新消费组协议（第 07 页）和 KIP-932 队列语义（第 10 页）是 4.0 的另外两大亮点，三者协同。</li>
+</ul></div>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">用 Kafka 管 Kafka</div><div class="ch">🎤 复述挑战：说出 ZK 三痛点与 KRaft 三优势，以及为什么 Controller 要奇数个</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="10-scenarios-and-selection.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="12-ecosystem.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=11; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>

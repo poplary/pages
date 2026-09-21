@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10 · 场景与选型 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}th,td{border:1px solid #22314F;padding:6px 8px;text-align:left;vertical-align:top}th{background:#1A2440;color:#FBBF24}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 2 幕 · 应用 · 本幕末</span><span class="clk">120 / 180 分钟</span><span class="dur">预计 20 分钟</span></header>
+<h1><span class="no">10</span>场景与选型</h1>
+<p class="sub">有了 Redis 和 MySQL，为什么还要 Kafka——以及什么时候不该用</p>
+
+<div class="blk"><h2>① 钩子</h2><p>团队已经有 Redis（缓存）、MySQL（持久化），为什么日志、订单、埋点还要再上一套 Kafka？因为这三类场景，Redis 和 MySQL 都接不住——要么扛不住吞吐，要么做不到“多下游各读各”。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>前 9 页学过的全部机制：日志+副本+消费者组+批量+留存。Kafka 的本质是“可回放的高吞吐账本”——这个定位决定了它适合什么、不适合什么。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 210" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#38BDF8"/></marker></defs>
+<rect x="16" y="20" width="270" height="170" rx="10" fill="#0E1626" stroke="#22314F"/>
+<text x="151" y="42" font-size="12" text-anchor="middle" fill="#FBBF24">场景一：秒杀削峰</text>
+<rect x="40" y="60" width="100" height="30" rx="6" fill="#3A1A1A" stroke="#F87171"/><text x="90" y="80" font-size="10" text-anchor="middle" fill="#F87171">洪峰 10万</text>
+<line x1="90" y1="90" x2="90" y2="108" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="40" y="108" width="210" height="30" rx="6" fill="#0E2A3C" stroke="#38BDF8"/><text x="145" y="128" font-size="10" text-anchor="middle" fill="#38BDF8">Kafka 蓄水池</text>
+<line x1="145" y1="138" x2="145" y2="156" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="40" y="156" width="210" height="26" rx="6" fill="#0E2A1A" stroke="#34D399"/><text x="145" y="174" font-size="10" text-anchor="middle" fill="#34D399">下游按能力平稳消费</text>
+
+<rect x="305" y="20" width="270" height="170" rx="10" fill="#0E1626" stroke="#22314F"/>
+<text x="440" y="42" font-size="12" text-anchor="middle" fill="#FBBF24">场景二：日志管道（全家桶）</text>
+<rect x="325" y="60" width="100" height="28" rx="6" fill="#0E2A3C" stroke="#38BDF8"/><text x="375" y="78" font-size="10" text-anchor="middle" fill="#38BDF8">Connect 采集</text>
+<line x1="375" y1="88" x2="375" y2="104" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="325" y="104" width="100" height="28" rx="6" fill="#0E2A3C" stroke="#38BDF8"/><text x="375" y="122" font-size="10" text-anchor="middle" fill="#38BDF8">Kafka</text>
+<line x1="425" y1="118" x2="445" y2="118" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="445" y="104" width="110" height="28" rx="6" fill="#1A1530" stroke="#A78BFA"/><text x="500" y="122" font-size="10" text-anchor="middle" fill="#A78BFA">Streams 计算</text>
+<line x1="500" y1="132" x2="500" y2="150" stroke="#A78BFA" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="445" y="150" width="110" height="26" rx="6" fill="#0E2A1A" stroke="#34D399"/><text x="500" y="168" font-size="10" text-anchor="middle" fill="#34D399">结果主题</text>
+<text x="440" y="178" font-size="9" text-anchor="middle" fill="#8CA3C7">一套框架替代 Flume+Kafka+Storm</text>
+
+<rect x="594" y="20" width="270" height="170" rx="10" fill="#0E1626" stroke="#22314F"/>
+<text x="729" y="42" font-size="12" text-anchor="middle" fill="#FBBF24">场景三：事件源 / CDC</text>
+<rect x="614" y="60" width="100" height="30" rx="6" fill="#16223A" stroke="#64748B"/><text x="664" y="80" font-size="10" text-anchor="middle" fill="#8CA3C7">DB binlog</text>
+<line x1="664" y1="90" x2="664" y2="108" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="614" y="108" width="210" height="30" rx="6" fill="#0E2A3C" stroke="#38BDF8"/><text x="719" y="128" font-size="10" text-anchor="middle" fill="#38BDF8">Kafka（Debezium CDC）</text>
+<line x1="664" y1="138" x2="664" y2="156" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="719" y1="138" x2="719" y2="156" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="614" y="156" width="100" height="26" rx="6" fill="#0E2A1A" stroke="#34D399"/><text x="664" y="174" font-size="10" text-anchor="middle" fill="#34D399">数仓</text>
+<rect x="724" y="156" width="100" height="26" rx="6" fill="#0E2A1A" stroke="#34D399"/><text x="774" y="174" font-size="10" text-anchor="middle" fill="#34D399">缓存刷新</text>
+</svg>
+<figcaption>三大场景：削峰、管道、事件源——都吃“可回放 + 多下游各读各”这个 Kafka 独有的特性</figcaption>
+</figure>
+
+<div class="blk"><h2>选型对比：Kafka vs RabbitMQ vs RocketMQ</h2>
+<table>
+<tr><th>维度</th><th>Kafka</th><th>RabbitMQ</th><th>RocketMQ</th></tr>
+<tr><td>吞吐</td><td>百万级 TPS</td><td>万级</td><td>十万级</td></tr>
+<tr><td>消息模型</td><td>日志（可回放，读后仍在）</td><td>队列（取走即没）</td><td>日志 + 队列</td></tr>
+<tr><td>顺序</td><td>分区内有序</td><td>队列内有序</td><td>分区内有序</td></tr>
+<tr><td>事务/延迟消息</td><td>有事务（开销大）</td><td>弱</td><td>强（金融优化）</td></tr>
+<tr><td>路由能力</td><td>弱（按 key 分区）</td><td>强（灵活路由）</td><td>中</td></tr>
+<tr><td>最佳场景</td><td>大流量流式管道</td><td>复杂路由、小流量</td><td>金融、事务、百万积压</td></tr>
+</table>
+</div>
+
+<div class="blk"><h2>③ 类比</h2><p>Kafka 是<b>物流中转仓</b>（货留下，多家来提，可回放）；RabbitMQ 是<b>快递员</b>（送完就走，路由灵活）；RocketMQ 是<b>带保价和定时配送的快递</b>（金融场景优化）。运大件选仓库，送外卖选摩托，寄保价选顺丰。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>小流量、强路由、需要消息优先级的场景，RabbitMQ 更合适——别为了“用 Kafka”而用。</li>
+<li>点对点队列语义（消息只被一个消费者处理、不保序）Kafka 4.0 才有 share group（KIP-932，仍 Early Access）——此前这种需求 RabbitMQ 更顺手。</li>
+<li>Kafka 也能跑小流量，但<b>运维成本摆在那</b>（多 Broker、监控、调优）——小项目用 Redis Stream 可能更省。</li>
+</ul></div>
+
+<figure>
+<svg viewBox="0 0 880 130" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#34D399"/></marker></defs>
+<text x="440" y="24" font-size="13" text-anchor="middle" fill="#FBBF24">第 2 幕小结：应用三件套的闭环</text>
+<rect x="40" y="44" width="240" height="56" rx="8" fill="#0E2A1A" stroke="#34D399"/>
+<text x="160" y="66" font-size="13" text-anchor="middle" fill="#34D399">配置不丢</text>
+<text x="160" y="84" font-size="10" text-anchor="middle" fill="#8CA3C7">三端八条（08）</text>
+<line x1="280" y1="72" x2="330" y2="72" stroke="#34D399" stroke-width="2" marker-end="url(#ar2)"/>
+<rect x="330" y="44" width="240" height="56" rx="8" fill="#2A1414" stroke="#F87171"/>
+<text x="450" y="66" font-size="13" text-anchor="middle" fill="#F87171">监控 Lag</text>
+<text x="450" y="84" font-size="10" text-anchor="middle" fill="#8CA3C7">马太效应、对症（09）</text>
+<line x1="570" y1="72" x2="620" y2="72" stroke="#34D399" stroke-width="2" marker-end="url(#ar2)"/>
+<rect x="620" y="44" width="220" height="56" rx="8" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="730" y="66" font-size="13" text-anchor="middle" fill="#38BDF8">选对场景</text>
+<text x="730" y="84" font-size="10" text-anchor="middle" fill="#8CA3C7">削峰/管道/事件源（10）</text>
+</svg>
+<figcaption>配得对 → 看得清积压 → 选对场景：应用层的“能配、能排、会选”闭环</figcaption>
+</figure>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">运大件选高速，送外卖选摩托</div><div class="ch">🎤 复述挑战：向同事解释选型时该问的三个问题（吞吐？回放？路由？）</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="09-backlog-and-lag.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="11-kraft-and-4.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=10; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>

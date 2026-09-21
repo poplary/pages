@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>08 · 不丢消息 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+.blk dt{color:#38BDF8;font-size:13px;margin-top:8px;font-weight:700}.blk dd{font-size:13px;color:#8CA3C7;margin:2px 0 2px 18px;line-height:1.6}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}th,td{border:1px solid #22314F;padding:6px 8px;text-align:left;vertical-align:top}th{background:#1A2440;color:#FBBF24}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 2 幕 · 应用</span><span class="clk">80 / 180 分钟</span><span class="dur">预计 20 分钟</span></header>
+<h1><span class="no">08</span>不丢消息清单</h1>
+<p class="sub">Kafka 只保证“已提交”消息；丢消息从来不是 Kafka 丢的，是配置丢的</p>
+
+<div class="blk"><h2>① 钩子</h2><p>都说 Kafka 可靠，可你的消息还是丢了——查日志发现 send 成功了、消费也跑了，偏偏中间某条不见了。问题不在 Kafka，在<b>三道防线只设了一道</b>。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>第 04 页的 acks/ISR，第 06 页的位移提交——这页把它们组成一张“不丢”配置清单。可靠性从来是配置出来的，不是天生的。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 280" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#34D399"/></marker></defs>
+<rect x="16" y="20" width="268" height="200" rx="10" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="150" y="42" font-size="13" text-anchor="middle" fill="#38BDF8">生产者端</text>
+<text x="32" y="66" font-size="11" fill="#34D399">✓ send(msg, callback) 带回调</text>
+<text x="32" y="84" font-size="11" fill="#34D399">✓ acks=all（所有 ISR 确认）</text>
+<text x="32" y="102" font-size="11" fill="#34D399">✓ retries 调大（应对抖动）</text>
+<text x="32" y="120" font-size="11" fill="#34D399">✓ enable.idempotence=true</text>
+<text x="32" y="138" font-size="11" fill="#34D399">  （4.0 默认，防重试重复）</text>
+<text x="32" y="162" font-size="10" fill="#F87171">✗ 别用 fire-and-forget</text>
+<text x="32" y="178" font-size="10" fill="#F87171">  （send 不带回调，丢了不知）</text>
+<text x="32" y="200" font-size="10" fill="#8CA3C7">交付语义：at-least-once</text>
+
+<line x1="284" y1="120" x2="316" y2="120" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="316" y="20" width="268" height="200" rx="10" fill="#0E2A1A" stroke="#34D399"/>
+<text x="450" y="42" font-size="13" text-anchor="middle" fill="#34D399">Broker 端</text>
+<text x="332" y="66" font-size="11" fill="#34D399">✓ replication.factor=3</text>
+<text x="332" y="84" font-size="11" fill="#34D399">✓ min.insync.replicas=2</text>
+<text x="332" y="102" font-size="11" fill="#34D399">✓ unclean.leader.election=false</text>
+<text x="332" y="126" font-size="10" fill="#8CA3C7">RF = MIR + 1（推荐）</text>
+<text x="332" y="142" font-size="10" fill="#8CA3C7">挂 1 副本仍满足 MIR 可用</text>
+<text x="332" y="158" font-size="10" fill="#8CA3C7">挂 2 副本才不可用（权衡）</text>
+<text x="332" y="182" font-size="10" fill="#F87171">✗ MIR=RF 不可取：</text>
+<text x="332" y="198" font-size="10" fill="#F87171">  挂 1 个 → 分区直接不可用</text>
+
+<line x1="584" y1="120" x2="616" y2="120" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="616" y="20" width="248" height="200" rx="10" fill="#1A1530" stroke="#A78BFA"/>
+<text x="740" y="42" font-size="13" text-anchor="middle" fill="#A78BFA">消费者端</text>
+<text x="632" y="66" font-size="11" fill="#34D399">✓ enable.auto.commit=false</text>
+<text x="632" y="84" font-size="11" fill="#34D399">✓ 先处理完业务，再提交位移</text>
+<text x="632" y="102" font-size="11" fill="#34D399">✓ 关闭前 commitSync 保底</text>
+<text x="632" y="120" font-size="11" fill="#34D399">✓ 多线程：跟踪每条处理完</text>
+<text x="632" y="138" font-size="11" fill="#34D399">  才提交（最易出错处）</text>
+<text x="632" y="162" font-size="10" fill="#F87171">✗ 先提交后处理 → 丢消息</text>
+<text x="632" y="178" font-size="10" fill="#F87171">  （书签夹错页，重启跳过）</text>
+<text x="632" y="200" font-size="10" fill="#8CA3C7">精确一次：+事务/幂等消费</text>
+</svg>
+<figcaption>三端各设防：生产者要回执、Broker 留多份底、消费者验货后再销单——缺一环就漏</figcaption>
+</figure>
+
+<div class="blk"><h2>三种交付语义</h2>
+<table>
+<tr><th>语义</th><th>表现</th><th>配置</th><th>用途</th></tr>
+<tr><td>at most once</td><td>可能丢、不重复</td><td>acks=0 禁重试</td><td>可丢的日志</td></tr>
+<tr><td>at least once</td><td>不丢、可能重复</td><td>acks=all+重试（默认）</td><td>一般业务（消费端幂等兜底）</td></tr>
+<tr><td>exactly once</td><td>不丢不重复</td><td>幂等+事务+消费端幂等</td><td>支付/金融</td></tr>
+</table>
+</div>
+
+<div class="blk"><h2>技术细节</h2>
+<dl>
+<dt>生产者端：为什么 retries + idempotence 要一起配</dt>
+<dd>retries 调大后，网络抖动会触发重发。无幂等 → 重发成功两次 → 重复。开幂等后 Broker 按 (PID, 分区, seq) 去重，重发自动被吞。4.0 默认 enable.idempotence=true，retries=Integer.MAX_VALUE。若不用幂等，retries 应配合 max.in.flight.requests.per.connection≤5 保证分区内有序。</dd>
+<dt>Broker 端：min.insync.replicas 的具体效果</dt>
+<dd>假设 RF=3, min.insync.replicas=2。正常时 ISR=3, acks=all 要 3 个确认。1 个 Follower 挂 → ISR=2, 仍能写入（2≥2）。2 个 Follower 全挂 → ISR=1 &lt; 2 → NotEnoughReplicasException，拒绝写入。这就是“宁可不可用也不丢”。</dd>
+<dt>消费者端：enable.auto.commit=false 后的三种提交策略</dt>
+<dd>① 同步提交 commitSync()：阻塞等 Broker 确认，最安全但最慢。② 异步提交 commitAsync()：非阻塞，可能丢（处理后提交前:提交前崩溃→重启后重复处理）。③ 组合：commitAsync() + commitSync()（关闭前同步兜底）。Kafka 4.0 消费者默认异步自动提交，需手动关闭。</dd>
+<dt>exactly-once 语义的真正条件</dt>
+<dd>生产者事务 + 消费者 read_committed + 业务幂等 = 端到端 exactly-once。单靠 Kafka 事务只保“不重不漏”到日志，业务侧重复消费仍需幂等（如 DB 唯一键、Redis SETNX）。</dd>
+</dl></div>
+
+<div class="blk"><h2>③ 类比</h2><p>寄贵重合同：<b>寄件要回执</b>（acks=all，所有分部签收才算）、<b>收发室留三份底档</b>（RF=3，且至少两份同步才算归档）、<b>签收登记完才算送达</b>（先验货再销单=先处理后提交）。三道手续，少一道就可能丢。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>这份清单买到的是“<b>已提交</b>消息不丢”——生产者发出但未应答的消息，Kafka 不保证（所以必须带回调重试）。</li>
+<li>RF=MIR+1 是可用性与持久性的权衡：要更高持久性就提高 MIR，但要接受“可用副本更少”的代价。</li>
+<li>exactly-once 有性能开销，且<b>副作用操作（发短信）无法回滚</b>——仍需业务幂等（唯一键去重 / outbox pattern）。</li>
+<li>极端情况：多数副本同时损坏，仍会丢。Kafka 买的是“单点故障不丢”，不是“末日不丢”。</li>
+</ul></div>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">不丢 = 三端都设防，缺一不可</div><div class="ch">🎤 复述挑战：不看页面，说出八条配置各属于哪一端，以及 RF 与 MIR 的关系</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="07-rebalance.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="09-backlog-and-lag.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=8; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>

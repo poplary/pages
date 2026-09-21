@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>04 · 副本与 ISR · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+.blk dt{color:#38BDF8;font-size:13px;margin-top:8px;font-weight:700}.blk dd{font-size:13px;color:#8CA3C7;margin:2px 0 2px 18px;line-height:1.6}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}th,td{border:1px solid #22314F;padding:6px 8px;text-align:left;vertical-align:top}th{background:#1A2440;color:#FBBF24}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 1 幕 · 原理</span><span class="clk">40 / 180 分钟</span><span class="dur">预计 12 分钟</span></header>
+<h1><span class="no">04</span>副本与 ISR</h1>
+<p class="sub">机器随时会挂，凭什么敢说“不丢”？靠多抄几份，只信跟得上的</p>
+
+<div class="blk"><h2>① 钩子</h2><p>一台机器随时可能宕机，Kafka 却敢拍胸脯说“已提交的消息不丢”——它靠的不是神，是<b>把每本账在不同机器上抄多份，并且只承认抄得上的抄写员</b>。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>你听过 MySQL 的主从复制：主库写、从库抄。Kafka 也是 Leader 写、Follower 抄，但规矩更严——<b>Follower 不接客</b>（不对外读），且只有“跟得上”的 Follower 才有资格在 Leader 挂时接班。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#34D399"/></marker><marker id="am" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#FBBF24"/></marker></defs>
+<text x="440" y="22" font-size="13" text-anchor="middle" fill="#8CA3C7">分区 P0 的 3 副本（RF=3），分布在 3 台 Broker</text>
+<rect x="30" y="40" width="540" height="150" rx="12" fill="none" stroke="#34D399" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="50" y="60" font-size="12" fill="#34D399">ISR · 与 Leader 同步的副本集合（有资格接班）</text>
+<rect x="60" y="90" width="160" height="60" rx="8" fill="#3A2A0E" stroke="#FBBF24" stroke-width="2"/>
+<text x="140" y="114" font-size="13" text-anchor="middle" fill="#FBBF24">Leader · Broker 1</text>
+<text x="140" y="134" font-size="11" text-anchor="middle" fill="#8CA3C7">唯一读写入口</text>
+<line x1="220" y1="120" x2="270" y2="120" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<text x="245" y="112" font-size="10" text-anchor="middle" fill="#34D399">拉取</text>
+<rect x="270" y="90" width="160" height="60" rx="8" fill="#0E2A1A" stroke="#34D399" stroke-width="2"/>
+<text x="350" y="114" font-size="13" text-anchor="middle" fill="#34D399">Follower · Broker 2</text>
+<text x="350" y="134" font-size="11" text-anchor="middle" fill="#8CA3C7">只抄写，不对外</text>
+<rect x="470" y="90" width="90" height="60" rx="8" fill="#0E2A1A" stroke="#34D399" stroke-width="2"/>
+<text x="515" y="114" font-size="11" text-anchor="middle" fill="#34D399">Follower</text>
+<text x="515" y="130" font-size="10" text-anchor="middle" fill="#8CA3C7">Broker 3</text>
+<rect x="590" y="40" width="260" height="150" rx="12" fill="none" stroke="#F87171" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="610" y="60" font-size="12" fill="#F87171">OSR · 落后的副本</text>
+<rect x="620" y="90" width="200" height="60" rx="8" fill="#2A1414" stroke="#F87171" stroke-width="2" stroke-dasharray="3 3"/>
+<text x="720" y="114" font-size="13" text-anchor="middle" fill="#F87171">Follower · 落后</text>
+<text x="720" y="134" font-size="10" text-anchor="middle" fill="#8CA3C7">超 30s 没跟上 → 移出 ISR</text>
+<text x="440" y="172" font-size="11" text-anchor="middle" fill="#8CA3C7">AR = ISR + OSR（全部分配副本）；Leader 必从 ISR 选</text>
+
+<text x="440" y="214" font-size="12" text-anchor="middle" fill="#FBBF24">位移标尺：HW 以下才对消费者可见</text>
+<line x1="60" y1="250" x2="820" y2="250" stroke="#22314F" stroke-width="2"/>
+<g font-size="10" fill="#8CA3C7">
+<line x1="60" y1="246" x2="60" y2="254" stroke="#8CA3C7"/><text x="60" y="270" text-anchor="middle">0</text>
+<line x1="200" y1="246" x2="200" y2="254" stroke="#8CA3C7"/><text x="200" y="270" text-anchor="middle">2</text>
+<line x1="480" y1="246" x2="480" y2="254" stroke="#8CA3C7"/><text x="480" y="270" text-anchor="middle">5</text>
+<line x1="620" y1="246" x2="620" y2="254" stroke="#34D399" stroke-width="2"/><text x="620" y="270" text-anchor="middle" fill="#34D399">6=HW</text>
+<line x1="820" y1="246" x2="820" y2="254" stroke="#FBBF24" stroke-width="2"/><text x="820" y="270" text-anchor="middle" fill="#FBBF24">8=LEO</text>
+</g>
+<rect x="60" y="232" width="560" height="14" fill="#0E2A1A" stroke="#34D399" stroke-width="1.5"/>
+<text x="390" y="243" font-size="9" text-anchor="middle" fill="#34D399">已提交（HW 以下，消费者可读）</text>
+<rect x="620" y="232" width="200" height="14" fill="#2A2238" stroke="#A78BFA" stroke-width="1.5"/>
+<text x="720" y="243" font-size="9" text-anchor="middle" fill="#A78BFA">未提交（仅 Leader 有）</text>
+<text x="440" y="300" font-size="11" text-anchor="middle" fill="#8CA3C7">HW = 所有 ISR 副本 LEO 的最小值；LEO = 下一条待写位置；HW ≤ LEO</text>
+</svg>
+<figcaption>Leader 唯一读写，Follower 拉取同步；ISR 收缩扩张决定谁能接班；HW 是“抄够份数”的水位线</figcaption>
+</figure>
+
+<div class="blk"><h2>acks 三档可靠性（生产者端确认）</h2>
+<table>
+<tr><th>acks</th><th>确认谁</th><th>可靠性</th><th>典型用途</th></tr>
+<tr><td><b>0</b></td><td>不等待任何确认</td><td>可能丢</td><td>可丢的日志/监控</td></tr>
+<tr><td><b>1</b></td><td>Leader 写入即应答</td><td>中（Leader 挂可能丢）</td><td>一般业务</td></tr>
+<tr><td><b>all (-1)</b></td><td>所有 ISR 副本确认</td><td>最高</td><td>支付/订单（配 min.insync.replicas≥2）</td></tr>
+</table>
+</div>
+
+<div class="blk"><h2>技术细节</h2>
+<dl>
+<dt>ISR 收缩与扩张</dt>
+<dd>Follower 落后超过 <code>replica.lag.time.max.ms</code>（默认 30s）→ 踢出 ISR（收缩）。追上 Leader LEO → 重新加入 ISR（扩张）。注意：Kafka 0.9 起已移除 <code>replica.lag.max.messages</code>（按条数踢），只按时间——因为条数阈值在突发流量下会导致 ISR 频繁抖动。</dd>
+<dt>HW 推进步骤</dt>
+<dd>① Leader 收到生产者消息 → 写入本地日志 → LEO+1。② Follower 拉取 → 写入本地 → 汇报自己的 LEO 给 Leader。③ Leader 更新远端 LEO 记录 → 重算 HW = min(所有 ISR 副本 LEO)。④ HW 推进后，Leader 向 Follower 同步新 HW。消费者只能读到 HW 以下的消息。</dd>
+<dt>Leader Epoch 截断（0.11+，4.0 标准）</dt>
+<dd>旧机制：Follower 重启后按 HW 截断未同步部分。问题：网络分区期间 Leader 切换，旧 HW 可能指向已过时的位置 → 截断过多 → 丢已提交消息。新机制：每任 Leader 分配一个递增 epoch，Follower 维护 (epoch, LEO) 映射。截断时查 epoch 对应的 LEO 而非 HW → 精准截断，不丢已提交数据。</dd>
+<dt>min.insync.replicas 与 acks=all 的联动</dt>
+<dd>acks=all 要求所有<b>当前 ISR 副本</b>确认。若 2 个 Follower 全挂，ISR 只剩 Leader 1 个，acks=all 等同 acks=1（只 Leader 确认就完事）。设 <code>min.insync.replicas=2</code> → ISR 数 &lt; 2 时直接拒绝写入 → 宁可不可用也不丢。三件套：acks=all + min.insync.replicas≥2 + unclean.leader.election.enable=false。</dd>
+</dl></div>
+
+<div class="blk"><h2>③ 类比</h2><p>记账小队：<b>Leader 是主记账员</b>，Follower 是抄写员。<b>ISR 就是“跟得上的抄写员名单”</b>——只有名单里的人，在主记账员离职时才有资格接班。HW 是“最慢的抄写员抄到的那一页”，没抄到的页面对客户不可见（防止读到没抄够份数的数据）。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>MySQL 从库可以分担读压力（读写分离），<b>Kafka 的 Follower 不对外服务</b>——为了保证“写了立刻能读”（read-your-writes）和“不会时有时无”（单调读）。读负载靠<b>分区跨 Broker 分散</b>，不是靠副本读。</li>
+<li>ISR 不是固定名单：Follower 落后超过 <code>replica.lag.time.max.ms</code>（默认 30s）就被踢出，追上再回来。</li>
+<li>“不丢”有前提：acks=all + min.insync.replicas≥2 + unclean.leader.election.enable=false（不让落后副本当 Leader）。三缺一，照样丢。详见第 08 页。</li>
+</ul></div>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">多抄几份，只信跟得上的</div><div class="ch">🎤 复述挑战：解释 ISR 是什么、HW 怎么算、为什么 Follower 不抗读</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="03-why-fast.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="05-producer-journey.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=4; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>

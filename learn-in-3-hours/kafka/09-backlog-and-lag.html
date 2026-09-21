@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>09 · 积压与 Lag · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+.blk dt{color:#38BDF8;font-size:13px;margin-top:8px;font-weight:700}.blk dd{font-size:13px;color:#8CA3C7;margin:2px 0 2px 18px;line-height:1.6}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 2 幕 · 应用</span><span class="clk">100 / 180 分钟</span><span class="dur">预计 20 分钟</span></header>
+<h1><span class="no">09</span>积压与 Lag</h1>
+<p class="sub">消费组越来越慢，Lag 一路涨——为什么越慢越追不上</p>
+
+<div class="blk"><h2>① 钩子</h2><p>半夜告警：某消费组 Lag 飙到 500 万。你扩了消费者，可 Lag 还在涨——因为消息已经掉出页缓存、落了盘，消费者在读磁盘，越读越慢。这就是“马太效应”。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>第 03 页的页缓存、第 06 页的位移——这页把它们连成一个恶性循环。Lag 不是病，是症状；根因是“消费速度 &lt; 生产速度”持续了一段时间。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 360" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#38BDF8"/></marker><marker id="ar2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#F87171"/></marker></defs>
+<text x="440" y="22" font-size="13" text-anchor="middle" fill="#FBBF24">Lag = 生产者末端位移 − 消费者已提交位移 = 未消费条数</text>
+<line x1="60" y1="50" x2="820" y2="50" stroke="#22314F" stroke-width="2"/>
+<rect x="60" y="44" width="240" height="12" fill="#0E2A1A" stroke="#34D399"/><text x="180" y="42" font-size="10" text-anchor="middle" fill="#34D399">已消费</text>
+<rect x="300" y="44" width="520" height="12" fill="#3A1A1A" stroke="#F87171"/><text x="560" y="42" font-size="11" text-anchor="middle" fill="#F87171">Lag（积压 500 万）</text>
+<line x1="300" y1="38" x2="300" y2="62" stroke="#A78BFA" stroke-width="2"/>
+<text x="300" y="78" font-size="10" text-anchor="middle" fill="#A78BFA">消费者书签</text>
+<line x1="820" y1="38" x2="820" y2="62" stroke="#38BDF8" stroke-width="2"/>
+<text x="820" y="78" font-size="10" text-anchor="middle" fill="#38BDF8">末端位移</text>
+
+<text x="440" y="110" font-size="13" text-anchor="middle" fill="#F87171">马太效应：越慢越追不上</text>
+<rect x="30" y="124" width="180" height="44" rx="8" fill="#2A1414" stroke="#F87171"/>
+<text x="120" y="142" font-size="12" text-anchor="middle" fill="#F87171">Lag 变大</text>
+<text x="120" y="160" font-size="10" text-anchor="middle" fill="#8CA3C7">消息积压</text>
+<line x1="210" y1="146" x2="250" y2="146" stroke="#F87171" stroke-width="2" marker-end="url(#ar2)"/>
+<rect x="250" y="124" width="190" height="44" rx="8" fill="#2A1414" stroke="#F87171"/>
+<text x="345" y="142" font-size="12" text-anchor="middle" fill="#F87171">掉出页缓存</text>
+<text x="345" y="160" font-size="10" text-anchor="middle" fill="#8CA3C7">消息落盘</text>
+<line x1="440" y1="146" x2="480" y2="146" stroke="#F87171" stroke-width="2" marker-end="url(#ar2)"/>
+<rect x="480" y="124" width="180" height="44" rx="8" fill="#2A1414" stroke="#F87171"/>
+<text x="570" y="142" font-size="12" text-anchor="middle" fill="#F87171">读盘 IO 慢</text>
+<text x="570" y="160" font-size="10" text-anchor="middle" fill="#8CA3C7">远慢于内存</text>
+<line x1="660" y1="146" x2="700" y2="146" stroke="#F87171" stroke-width="2" marker-end="url(#ar2)"/>
+<rect x="700" y="124" width="160" height="44" rx="8" fill="#2A1414" stroke="#F87171"/>
+<text x="780" y="142" font-size="12" text-anchor="middle" fill="#F87171">消费更慢</text>
+<text x="780" y="160" font-size="10" text-anchor="middle" fill="#8CA3C7">追不上生产</text>
+<path d="M780,168 C780,210 120,210 120,168" fill="none" stroke="#F87171" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#ar2)"/>
+<text x="440" y="200" font-size="10" text-anchor="middle" fill="#F87171">恶性循环（消息过期被删 = 真丢）</text>
+
+<text x="440" y="232" font-size="13" text-anchor="middle" fill="#34D399">处置：先查根因，再对症</text>
+<rect x="30" y="246" width="830" height="100" rx="8" fill="#0E2A1A" stroke="#34D399"/>
+<text x="48" y="268" font-size="11" fill="#34D399">① 查 Lag：</text><text x="130" y="268" font-size="11" fill="#8CA3C7">kafka-consumer-groups --describe --group &lt;g&gt; 看 LOG-END/CURRENT/LAG</text>
+<text x="48" y="288" font-size="11" fill="#34D399">② 查存活：</text><text x="130" y="288" font-size="11" fill="#8CA3C7">消费者是否被踢（session/max.poll.interval 超时）、ISR 是否缩水</text>
+<text x="48" y="308" font-size="11" fill="#34D399">③ 扩容：</text><text x="130" y="308" font-size="11" fill="#8CA3C7">加消费者（≤分区数）；不够先加分区（注意破坏 key 顺序）</text>
+<text x="48" y="328" font-size="11" fill="#34D399">④ 提速：</text><text x="130" y="328" font-size="11" fill="#8CA3C7">优化消费逻辑（单条→批量）、跳坏消息（重置位移 shift-by）</text>
+</svg>
+<figcaption>Lag 是体温计；马太效应让小积压滚成大雪崩；处置先查根因再对症</figcaption>
+</figure>
+
+<div class="blk"><h2>技术细节</h2>
+<dl>
+<dt>Lag 计算公式</dt>
+<dd>Lag = LogEndOffset − ConsumerOffset。LogEndOffset：分区最新消息位移（HW 值），由 Broker 维护。ConsumerOffset：该消费者组在该分区的已提交位移。两个值都从 kafka-consumer-groups.sh --describe 或 Broker JMX 获取。</dd>
+<dt>监控工具</dt>
+<dd>① kafka-consumer-groups.sh --describe：命令行秒查。② Burrow（独立服务）：按 group/分区打分（GOOD/WARN/ERR），支持多集群。③ Prometheus + kafka_consumer_lag_metrics（JMX Exporter → Grafana）：生产标配。④ 4.0 新增 Consumer API 的 lag() 方法，应用内直接读。</dd>
+<dt>各对策的具体调法</dt>
+<dd>消费者少→扩消费者：但上限=分区数，超出的消费者闲置。处理慢→增大 fetch.min.bytes / max.poll.records 减少拉取频率；或优化业务逻辑（异步/批写）。入流量突增→临时扩分区（破坏 key 有序）；或上游限流（令牌桶）；或加消费者组（分流）。Broker 慢→检查磁盘 IO / 网络带宽 / GC。</dd>
+</dl></div>
+
+<div class="blk"><h2>③ 类比</h2><p>还高利贷：<b>欠得越多利息越高</b>。Lag 就是欠的消息页数——欠得少时还在页缓存（内存，快），一旦掉出缓存落了盘（读磁盘，慢十倍），就还得更慢，欠得更多。滚到最后，老消息过了留存期被删——那才是真丢。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>扩消费者数超过分区数<b>无效</b>——多出的消费者闲着（分区是并行度上限）。</li>
+<li>增分区会<b>破坏 key 顺序</b>（hash(key)%分区数 变了），对依赖分区内有序的业务是灾难。</li>
+<li>Lag=0 不代表业务处理成功——只是位移提交了，业务可能还没落库（先提交后处理的坑）。</li>
+<li>马太效应有救：只要消费速度重新超过生产速度，Lag 就会回落，消息重新进页缓存——关键别让它跨过“落盘”那道坎。</li>
+</ul></div>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">Lag 是消费系统的心电图</div><div class="ch">🎤 复述挑战：解释马太效应的循环，以及三条对症处置</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="08-no-message-loss.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="10-scenarios-and-selection.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=9; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>

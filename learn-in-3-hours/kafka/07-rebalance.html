@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>07 · 重平衡 · 三小时学 Kafka</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1220;color:#E8EFFA;font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei",sans-serif;line-height:1.7}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 110px}
+a{color:#38BDF8;text-decoration:none}a:hover{text-decoration:underline}
+.hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;border-bottom:1px solid #22314F;padding-bottom:8px;margin-bottom:14px}
+.hd .act{color:#FBBF24;font-size:13px;letter-spacing:2px}.hd .clk{color:#8CA3C7;font-size:12px}.hd .dur{color:#38BDF8;font-size:12px}
+h1{font-size:24px;margin:4px 0 2px}h1 .no{color:#38BDF8;font-family:Consolas,monospace;margin-right:8px}
+.sub{color:#8CA3C7;font-size:13px;margin-bottom:14px}
+.blk{background:#121C30;border:1px solid #22314F;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.blk h2{font-size:14px;color:#FBBF24;letter-spacing:1px;margin-bottom:6px}.blk p{font-size:15px}.blk ul{margin:6px 0 0 18px}.blk li{font-size:14px;margin:3px 0}
+.blk dt{color:#38BDF8;font-size:13px;margin-top:8px;font-weight:700}.blk dd{font-size:13px;color:#8CA3C7;margin:2px 0 2px 18px;line-height:1.6}
+figure{background:#0E1626;border:1px solid #22314F;border-radius:12px;padding:10px;margin:0 0 14px}figure svg{width:100%;height:auto;display:block}figcaption{color:#8CA3C7;font-size:11px;text-align:center;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}th,td{border:1px solid #22314F;padding:6px 8px;text-align:left;vertical-align:top}th{background:#1A2440;color:#FBBF24}
+.gold{background:linear-gradient(135deg,#1A2440,#121C30);border:1px solid #2C3E64;border-radius:12px;padding:12px 14px;margin:14px 0}.gold .k{color:#FBBF24;font-size:12px;margin-bottom:3px}.gold .v{font-size:16px}.gold .ch{color:#8CA3C7;font-size:13px;margin-top:6px}
+.done{display:block;width:100%;padding:11px;border:none;border-radius:10px;background:#38BDF8;color:#062033;font-size:14px;font-weight:700;cursor:pointer;margin:6px 0}.done.ok{background:#34D399;color:#06281A}
+.prog{position:fixed;left:0;right:0;bottom:46px;background:#0E1626;border-top:1px solid #22314F;padding:5px 14px;font-size:11px;color:#8CA3C7;display:flex;align-items:center;gap:10px;z-index:9}.prog .track{flex:1;height:5px;background:#22314F;border-radius:3px;overflow:hidden}.prog .fill{height:100%;background:linear-gradient(90deg,#38BDF8,#34D399);width:0}
+.pager{position:fixed;left:0;right:0;bottom:0;background:#0B1220;border-top:1px solid #22314F;display:flex;justify-content:space-between;padding:7px 14px;z-index:9}.pager a{color:#38BDF8;font-size:13px;padding:5px 10px;border-radius:8px}.pager a.dis{color:#3A4A6B;pointer-events:none}.pager a.home{color:#FBBF24}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hd"><span class="act">第 1 幕 · 原理 · 本幕末</span><span class="clk">72 / 180 分钟</span><span class="dur">预计 8 分钟</span></header>
+<h1><span class="no">07</span>重平衡</h1>
+<p class="sub">成员一变，分区重洗——三代协议如何从“全员停工”走到“近无停机”</p>
+
+<div class="blk"><h2>① 钩子</h2><p>一个消费者卡了 5 分钟，为什么整个组都跟着停下来等它？老版重平衡就是这种“一人请假、全班停课”的脾气。Kafka 花了三代协议才把它治好。</p></div>
+<div class="blk"><h2>② 锚点</h2><p>上一页的消费者组分工：谁领哪几个分区是“分配方案”。成员一增一减，方案就得重排——这就是重平衡（Rebalance）。</p></div>
+
+<figure>
+<svg viewBox="0 0 880 220" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<rect x="16" y="20" width="276" height="180" rx="10" fill="#2A1414" stroke="#F87171"/>
+<text x="154" y="42" font-size="12" text-anchor="middle" fill="#F87171">经典协议（0.9–2.3）</text>
+<g><circle cx="60" cy="70" r="9" fill="#F87171"/><circle cx="100" cy="70" r="9" fill="#F87171"/><circle cx="140" cy="70" r="9" fill="#F87171"/><circle cx="180" cy="70" r="9" fill="#F87171"/><circle cx="220" cy="70" r="9" fill="#F87171"/></g>
+<text x="154" y="92" font-size="10" text-anchor="middle" fill="#F87171">5 个消费者全停（STW）</text>
+<text x="40" y="118" font-size="10" fill="#8CA3C7">· 客户端选 Leader 算分配</text>
+<text x="40" y="134" font-size="10" fill="#8CA3C7">· JoinGroup + 两轮 SyncGroup</text>
+<text x="40" y="150" font-size="10" fill="#8CA3C7">· 全量重分配</text>
+<text x="40" y="172" font-size="10" fill="#F87171">大组可达数分钟</text>
+
+<rect x="302" y="20" width="276" height="180" rx="10" fill="#2A2414" stroke="#FBBF24"/>
+<text x="440" y="42" font-size="12" text-anchor="middle" fill="#FBBF24">增量协作 KIP-480（2.4+）</text>
+<g><circle cx="346" cy="70" r="9" fill="#34D399"/><circle cx="386" cy="70" r="9" fill="#34D399"/><circle cx="426" cy="70" r="9" fill="#FBBF24"/><circle cx="466" cy="70" r="9" fill="#34D399"/><circle cx="506" cy="70" r="9" fill="#34D399"/></g>
+<text x="440" y="92" font-size="10" text-anchor="middle" fill="#FBBF24">仅变化部分暂停</text>
+<text x="326" y="118" font-size="10" fill="#8CA3C7">· CooperativeStickyAssignor</text>
+<text x="326" y="134" font-size="10" fill="#8CA3C7">· 子组重平衡</text>
+<text x="326" y="150" font-size="10" fill="#8CA3C7">· 仍基于客户端协调</text>
+<text x="326" y="172" font-size="10" fill="#FBBF24">过渡方案，大规模改善有限</text>
+
+<rect x="588" y="20" width="276" height="180" rx="10" fill="#0E2A1A" stroke="#34D399"/>
+<text x="726" y="42" font-size="12" text-anchor="middle" fill="#34D399">新协议 KIP-848（4.0 GA）</text>
+<g><circle cx="632" cy="70" r="9" fill="#34D399"/><circle cx="672" cy="70" r="9" fill="#34D399"/><circle cx="712" cy="70" r="9" fill="#FBBF24"/><circle cx="752" cy="70" r="9" fill="#34D399"/><circle cx="792" cy="70" r="9" fill="#34D399"/></g>
+<text x="726" y="92" font-size="10" text-anchor="middle" fill="#34D399">近无停机</text>
+<text x="612" y="118" font-size="10" fill="#8CA3C7">· 服务端 Coordinator 直接算</text>
+<text x="612" y="134" font-size="10" fill="#8CA3C7">· 增量协同，仅变化分区暂停</text>
+<text x="612" y="150" font-size="10" fill="#8CA3C7">· 客户端需 group.protocol=consumer</text>
+<text x="612" y="172" font-size="10" fill="#34D399">秒级，根治 STW</text>
+</svg>
+<figcaption>三代演进：客户端协调→服务端协调，全量→增量，停机→近无停机</figcaption>
+</figure>
+
+<div class="blk"><h2>触发条件与关键参数</h2>
+<p>三种变化会触发重平衡：<b>①成员数变</b>（加入/离开/崩溃被踢，占 99%）<b>②订阅主题数变</b>（正则订阅新匹配）<b>③分区数增</b>（只能增不能减）。</p>
+<table>
+<tr><th>参数</th><th>默认</th><th>作用</th></tr>
+<tr><td><code>session.timeout.ms</code></td><td>10s/45s</td><td>心跳超时→被踢（误踢主因）</td></tr>
+<tr><td><code>heartbeat.interval.ms</code></td><td>3s</td><td>心跳频率，建议 = session 的 1/3</td></tr>
+<tr><td><code>max.poll.interval.ms</code></td><td>5min</td><td>两次 poll 最大间隔，超时判定卡死</td></tr>
+</table>
+</div>
+
+<div class="blk"><h2>技术细节</h2>
+<dl>
+<dt>EAGER vs COOPERATIVE 重平衡策略</dt>
+<dd>EAGER（旧协议）：全部消费者撤销所有分区 → 重新分配 → 全停全启，Stop-The-World。COOPERATIVE（KIP-429，渐进式）：只撤销需要移动的分区，未受影响的消费者不停。类似“渐进式搬家”——只搬要换的房间，不搬全楼。KIP-848 新消费组协议默认渐进式。</dd>
+<dt>KIP-848 新消费组协议流程</dt>
+<dd>旧协议：Consumer ↔ GroupCoordinator：FindCoordinator → JoinGroup → SyncGroup → Heartbeat。新协议：Consumer 直接向 Broker 声明目标分区（ConsumerAssignments），Broker 按声明分配——无需 JoinGroup/SyncGroup 两轮 RPC。重平衡时只通知受影响的消费者重新声明，未影响的无感。4.0 默认启用。</dd>
+<dt>max.poll.interval.ms 的作用</dt>
+<dd>两次 poll() 间隔超过此值（默认 5min）→ 消费者被踢出组 → 触发重平衡。所以 poll() 里的业务逻辑不能超过 5min——否则要么调大此值，要么把耗时操作移到 poll 之外（异步处理 + 手动提交）。</dd>
+</dl></div>
+
+<div class="blk"><h2>③ 类比</h2><p>小组重新分工：<b>老办法</b>是有人请假就全班停下、开会重排所有人座位（经典 STW）；<b>新办法</b>是组长直接把离职者的活分给别人，其他人手不停（KIP-848 增量协同）。</p></div>
+<div class="blk"><h2>④ 边界</h2><ul>
+<li>重平衡不能完全避免——成员增减必然要重排，只能减少“误伤”和停顿。</li>
+<li>类比在“新协议秒级”处不再准确：仍有极小的撤销/分配窗口，只是小到几乎无感。</li>
+<li>4.0 新协议<b>服务端默认启用</b>，但客户端要显式 <code>group.protocol=consumer</code> 才能享受；不开则走经典协议（向后兼容）。</li>
+</ul></div>
+
+<figure>
+<svg viewBox="0 0 880 220" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,sans-serif">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#38BDF8"/></marker></defs>
+<text x="440" y="22" font-size="13" text-anchor="middle" fill="#FBBF24">第 1 幕小结：四元概念如何咬合成网</text>
+<rect x="350" y="40" width="180" height="50" rx="8" fill="#0E2A3C" stroke="#38BDF8" stroke-width="2"/>
+<text x="440" y="62" font-size="13" text-anchor="middle" fill="#38BDF8">分区日志（根）</text>
+<text x="440" y="80" font-size="10" text-anchor="middle" fill="#8CA3C7">Topic→Partition→Offset</text>
+<rect x="120" y="40" width="160" height="50" rx="8" fill="#0E2A1A" stroke="#34D399"/>
+<text x="200" y="62" font-size="13" text-anchor="middle" fill="#34D399">副本 / ISR</text>
+<text x="200" y="80" font-size="10" text-anchor="middle" fill="#8CA3C7">保不丢 · Leader 唯一读写</text>
+<line x1="280" y1="65" x2="350" y2="65" stroke="#34D399" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="600" y="40" width="160" height="50" rx="8" fill="#1A1530" stroke="#A78BFA"/>
+<text x="680" y="62" font-size="13" text-anchor="middle" fill="#A78BFA">消费者组 / 位移</text>
+<text x="680" y="80" font-size="10" text-anchor="middle" fill="#8CA3C7">保扩展 · 书签分页</text>
+<line x1="530" y1="65" x2="600" y2="65" stroke="#A78BFA" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="120" y="130" width="160" height="40" rx="8" fill="#0E2A3C" stroke="#38BDF8"/>
+<text x="200" y="155" font-size="12" text-anchor="middle" fill="#38BDF8">生产者（分区+批）</text>
+<line x1="200" y1="90" x2="200" y2="130" stroke="#38BDF8" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="600" y="130" width="160" height="40" rx="8" fill="#1A1530" stroke="#A78BFA"/>
+<text x="680" y="155" font-size="12" text-anchor="middle" fill="#A78BFA">重平衡（适应成员变化）</text>
+<line x1="680" y1="90" x2="680" y2="130" stroke="#A78BFA" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="120" y="190" width="640" height="22" rx="6" fill="#0E1A14" stroke="#34D399" stroke-dasharray="3 3"/>
+<text x="440" y="206" font-size="11" text-anchor="middle" fill="#34D399">性能底座贯穿全程：顺序写 · 页缓存 · 零拷贝 · 批量</text>
+</svg>
+<figcaption>分区日志是根：副本保不丢、生产者写、消费者组读、重平衡适应变化；性能底座托起一切</figcaption>
+</figure>
+
+<div class="gold"><div class="k">💡 金句</div><div class="v">分工变了，别让全班停课</div><div class="ch">🎤 复述挑战：说出触发重平衡的三种变化，以及 4.0 KIP-848 怎么根治 STW</div></div>
+<button class="done" id="doneBtn">✓ 学完此页</button>
+</div>
+
+<div class="prog"><span id="ptxt"></span><div class="track"><div class="fill"></div></div></div>
+<nav class="pager">
+<a href="06-consumer-group.html">← 上一页</a>
+<a class="home" href="00-roadmap.html">⌂ 学习地图</a>
+<a href="08-no-message-loss.html">下一页 →</a>
+</nav>
+<script>
+const PAGES=["00-roadmap.html","01-what-is-kafka.html","02-partitioned-log.html","03-why-fast.html","04-replica-and-isr.html","05-producer-journey.html","06-consumer-group.html","07-rebalance.html","08-no-message-loss.html","09-backlog-and-lag.html","10-scenarios-and-selection.html","11-kraft-and-4.html","12-ecosystem.html","99-feynman-review.html"];
+const CUR=7; const KEY='kafka3h-done-';
+function doneCount(){let n=0;for(let i=0;i<PAGES.length;i++){if(localStorage.getItem(KEY+i)==='1')n++}return n}
+function upd(){const d=doneCount(),pct=Math.round(d/PAGES.length*100);const f=document.querySelector('.prog .fill');if(f)f.style.width=pct+'%';const t=document.getElementById('ptxt');if(t)t.textContent=(CUR+1)+' / '+PAGES.length+' 页 · 已完成 '+d+' 页（'+pct+'%）';}
+(function(){const b=document.getElementById('doneBtn');if(localStorage.getItem(KEY+CUR)==='1'){b.classList.add('ok');b.textContent='✓ 已完成'}b.onclick=function(){if(localStorage.getItem(KEY+CUR)==='1'){localStorage.removeItem(KEY+CUR)}else{localStorage.setItem(KEY+CUR,'1')}const on=b.classList.toggle('ok');b.textContent=on?'✓ 已完成':'✓ 学完此页';upd();};upd()})();
+</script>
+</body>
+</html>
